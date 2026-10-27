@@ -107,6 +107,11 @@ Mobile users do not update immediately, so old app versions must keep working.
 ## Git
 
 - Default branch `main`; work on feature branches.
+- Branch name: use the branch name Linear generates for the issue (`<user>/lib-<n>-<slug>`, "Copy git branch name" in the issue). The `lib-<n>` part links the PR to the issue.
+- PR title starts with the issue ID(s): `LIB-15: TypeORM setup and migrations`.
+- PR description lists each issue it finishes as `Closes LIB-<n>` (one line per issue). Use `Part of LIB-<n>` when the PR does not finish the issue - it links without moving it to Done.
+- Do not move Linear issue status by hand once a PR exists. Linear git automations do it: draft / open -> In Progress, review request / ready to merge -> In Review, merge -> Done.
+- One PR per issue by default; combine issues only when they cannot be tested separately.
 - No AI attribution in commits or PR descriptions (no `Co-Authored-By`, no "Generated with ..." footers).
 
 ## Open decisions
