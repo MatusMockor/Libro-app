@@ -19,16 +19,18 @@ It is NOT a dating app (people meet in groups of 3+, around books, in public pla
 | Piece | Choice |
 |---|---|
 | Backend framework | NestJS (TypeScript) |
-| ORM | TypeORM, repository mode (`TypeOrmModule.forFeature` + `@InjectRepository`) |
+| ORM | TypeORM 1.x (`typeorm@^1.1` + `@nestjs/typeorm@^12`, confirmed compatible), repository mode (`TypeOrmModule.forFeature` + `@InjectRepository`) |
 | Database | PostgreSQL (with PostGIS, pgvector, `unaccent`, `pg_trgm` when needed) |
 | Mobile | Expo / React Native |
 | Photo storage | Object storage (S3 compatible), GPS / EXIF stripped on upload |
 | Later | Redis (realtime presence, BullMQ queues), Stripe |
+| Repo layout | Monorepo, pnpm workspaces + Turborepo: `apps/api`, `apps/mobile`, `packages/tree-engine`, `packages/contracts` |
 
 Rejected and why (do not reopen without a new reason):
 - **MongoDB** - data is relational (social graph, feed, sessions, groups, billing), needs FK integrity and transactions; GDPR deletes are harder without FKs; JSONB covers the document-shaped parts.
 - **MySQL** - weaker geo, vector, full-text and JSON support.
 - **Microservices** - not for MVP; module boundaries keep the option open.
+- **Separate repos for API and app** - the tree engine and API types must be shared directly; separate repos would mean publishing and version-syncing packages.
 - **Laravel / Symfony** - would lose shared TypeScript (tree engine, API types) with the app.
 
 ## Architecture: modular monolith
@@ -109,7 +111,5 @@ Mobile users do not update immediately, so old app versions must keep working.
 
 ## Open decisions
 
-- Repo layout: monorepo (`apps/api`, `apps/mobile`, `packages/tree-engine`, `packages/contracts` with pnpm + Turborepo) vs. separate repos. Not decided yet.
 - Auth provider: Better Auth vs. own JWT (+ Apple / Google sign-in).
 - Production hosting provider (EU region required).
-- Confirm `@nestjs/typeorm` supports TypeORM 1.0 before scaffolding; otherwise stay on 0.3.x.

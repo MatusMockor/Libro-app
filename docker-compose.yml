@@ -1,0 +1,77 @@
+name: libro-app
+
+services:
+  postgres:
+    container_name: libro-app-postgres
+    build:
+      context: ./docker/postgres
+    image: libro-app-postgres:dev
+    env_file:
+      - path: .env
+        required: true
+    ports:
+      - '127.0.0.1:${DB_PORT:-5433}:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+  api:
+    container_name: libro-app-api
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile.dev
+    image: libro-app-api:dev
+    init: true
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    ports:
+      - '127.0.0.1:${API_PORT:-3000}:${PORT:-3000}'
+      - '127.0.0.1:${API_DEBUG_PORT:-9229}:9229'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - --eval
+        - 'fetch(`http://127.0.0.1:$${process.env.PORT}/health`).then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))'
+      interval: 3s
+      timeout: 3s
+      retries: 40
+      start_period: 10s
+    develop:
+      watch:
+        - action: sync
+          path: ./apps/api/src
+          target: /app/apps/api/src
+        - action: sync+restart
+          path: ./tsconfig.base.json
+          target: /app/tsconfig.base.json
+        - action: sync+restart
+          path: ./apps/api/tsconfig.json
+          target: /app/apps/api/tsconfig.json
+        - action: sync+restart
+          path: ./apps/api/tsconfig.build.json
+          target: /app/apps/api/tsconfig.build.json
+        - action: sync+restart
+          path: ./apps/api/nest-cli.json
+          target: /app/apps/api/nest-cli.json
+        - action: rebuild
+          path: ./package.json
+        - action: rebuild
+          path: ./apps/api/package.json
+        - action: rebuild
+          path: ./pnpm-lock.yaml
+
+volumes:
+  pgdata:
+    name: libro-app-pgdata
