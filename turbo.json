@@ -4,7 +4,13 @@
     "lint": {},
     "typecheck": {},
     "test": {
-      "cache": false
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/tsconfig.base.json",
+        "$TURBO_ROOT$/docker/postgres/**",
+        "$TURBO_ROOT$/.env.test"
+      ],
+      "passThroughEnv": ["DOCKER_*", "TESTCONTAINERS_*"]
     },
     "dev": {
       "cache": false,

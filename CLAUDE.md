@@ -92,6 +92,7 @@ Mobile users do not update immediately, so old app versions must keep working.
 ## Testing
 
 - Feature / integration tests through real collaborators against a **real PostgreSQL** (Testcontainers). Do not mock internal repositories, services or helpers.
+- Integration tests use the harness in `apps/api/test/support/` (`test` from `integration-test.ts`): one Testcontainers Postgres per run, a database per test file cloned from the migrated template, tables truncated before every test. Tests and test files must not depend on each other or on their order.
 - Mock / stub only true external boundaries (Stripe, object storage, third-party HTTP APIs). Never make real network calls to third parties in tests.
 - Never `throw` in test code; use the framework's assertions so a failed precondition reads as an assertion failure.
 - Verify changes with **lint, typecheck (`tsc --noEmit`) and tests**. Do not run a production build just to check that code compiles.
