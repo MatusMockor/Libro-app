@@ -10,7 +10,7 @@ interface OpenApiDocument {
 }
 
 interface OpenApiOperation {
-  parameters?: { name: string; in: string; required?: boolean }[];
+  parameters?: { name: string; in: string; required?: boolean; schema?: unknown }[];
   requestBody?: { content: Record<string, { schema: unknown }> };
   responses: Record<string, { content?: Record<string, { schema: unknown }> }>;
 }
@@ -43,9 +43,33 @@ describe('OpenAPI', () => {
       $ref: '#/components/schemas/ProbeBook',
     });
     expect(document.components.schemas.ProbeBook?.properties).toHaveProperty('title');
-    expect(books?.get?.parameters).toEqual([
+    expect(books?.get?.parameters?.filter((parameter) => parameter.in === 'query')).toEqual([
       expect.objectContaining({ name: 'limit', in: 'query', required: true }),
     ]);
+  });
+
+  test('documents the optional app headers and the 426 answer on every operation', async ({
+    http,
+  }) => {
+    const document = (await http.get('/docs-json')).body as OpenApiDocument;
+    const operations = [document.paths['/health']?.get, document.paths['/v1/probe/books']?.post];
+
+    for (const operation of operations) {
+      expect(operation?.parameters).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: 'X-App-Version', in: 'header', required: false }),
+          expect.objectContaining({
+            name: 'X-Platform',
+            in: 'header',
+            required: false,
+            schema: { type: 'string', enum: ['ios', 'android'] },
+          }),
+        ]),
+      );
+      expect(operation?.responses['426']?.content).toEqual({
+        'application/problem+json': { schema: { $ref: '#/components/schemas/ProblemDetails' } },
+      });
+    }
   });
 
   test('documents the problem details error schema on every operation', async ({ http }) => {

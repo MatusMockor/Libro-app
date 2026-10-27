@@ -8,6 +8,7 @@ import { configModuleOptions } from '../src/config/config-module.options.js';
 import { envFilePaths } from '../src/config/env-file-paths.js';
 import { envSchema } from '../src/config/env.schema.js';
 import { loadEnv } from '../src/config/load-env.js';
+import { AppVersion } from '../src/shared/app-version.js';
 
 describe('config validation', () => {
   afterEach(() => {
@@ -50,6 +51,29 @@ describe('config validation', () => {
     ]);
   });
 
+  it('refuses to start with a minimum app version that is not MAJOR.MINOR.PATCH', async () => {
+    vi.stubEnv('MIN_APP_VERSION_IOS', 'v1.4.0');
+    vi.stubEnv('MIN_APP_VERSION_ANDROID', '1.4');
+
+    await expect(ConfigModule.forRoot(configModuleOptions([]))).rejects.toThrow(
+      [
+        'Config validation error: MIN_APP_VERSION_IOS: must be a version like 1.4.0',
+        'MIN_APP_VERSION_ANDROID: must be a version like 1.4.0',
+      ].join('\n'),
+    );
+  });
+
+  it('parses the minimum app versions', () => {
+    const env = envSchema.parse({
+      DATABASE_URL: 'postgresql://libro_app@127.0.0.1:5433/libro_app',
+      MIN_APP_VERSION_IOS: '2.1.0',
+      MIN_APP_VERSION_ANDROID: '1.10.3',
+    });
+
+    expect(env.MIN_APP_VERSION_IOS.toString()).toBe('2.1.0');
+    expect(env.MIN_APP_VERSION_ANDROID.toString()).toBe('1.10.3');
+  });
+
   it('applies defaults for optional variables', () => {
     const env = envSchema.parse({
       DATABASE_URL: 'postgresql://libro_app@127.0.0.1:5433/libro_app',
@@ -59,6 +83,8 @@ describe('config validation', () => {
       NODE_ENV: 'development',
       PORT: 3000,
       DATABASE_URL: 'postgresql://libro_app@127.0.0.1:5433/libro_app',
+      MIN_APP_VERSION_IOS: AppVersion.parse('0.0.0'),
+      MIN_APP_VERSION_ANDROID: AppVersion.parse('0.0.0'),
     });
   });
 });

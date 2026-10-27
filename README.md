@@ -208,15 +208,29 @@ Codes:
 - `validation_failed` (400) - a body, query or params schema rejected the input.
 - A code derived from the status phrase for any Nest `HttpException`: `bad_request` (also malformed JSON), `not_found` (also unknown routes), `conflict`, `payload_too_large`, ...
 - An own code for domain errors: `throw new ProblemException({ status: 409, code: 'book_already_finished', detail: '...' })`.
+- `app_update_required` (426) and `invalid_app_client` (400) from the app version check (see below).
 - `internal_server_error` (500) for anything that is not an `HttpException`.
 
 5xx responses never expose internal messages or stack traces: an unexpected error answers `detail: "An unexpected error occurred."`, a 5xx `HttpException` answers its status phrase. The original error is logged server-side with Nest's `Logger`. Only `ProblemException` can send a deliberate 5xx `detail`.
 
 The shape is part of the `v1` contract and covered by `apps/api/test/api-contract.e2e.test.ts`.
 
+### App version check
+
+The app sends `X-Platform` (`ios` / `android`, case-insensitive) and `X-App-Version` (`MAJOR.MINOR.PATCH`) on every request. A global guard (`apps/api/src/http/app-version/`) compares the version numerically per component (`1.10.0` is newer than `1.9.0`) with the minimum of its platform from `MIN_APP_VERSION_IOS` / `MIN_APP_VERSION_ANDROID` (default `0.0.0`, nobody is blocked). It runs on every route, `/health` included; `/docs` is not a Nest route and is not checked.
+
+| Request                                                | Answer                                |
+| ------------------------------------------------------ | ------------------------------------- |
+| Neither header (health checks, curl, web)              | passes                                |
+| Both headers, version at or above the platform minimum | passes                                |
+| Both headers, version below the platform minimum       | `426` with code `app_update_required` |
+| Only one header, unknown platform or malformed version | `400` with code `invalid_app_client`  |
+
+Every request with app headers that reaches a Nest route logs one line under the `AppVersion` context, for example `client platform=ios version=1.4.0 outcome=accepted` (`outcome` is `accepted`, `outdated` or `invalid`; invalid headers log `platform=unknown version=unknown`). Requests without the headers (health checks) are not logged, and no other header is logged.
+
 ### OpenAPI
 
-The Swagger UI is served at `/docs` and the OpenAPI 3.0 document at `/docs-json` (and `/docs-yaml`). They are enabled whenever `NODE_ENV` is not `production`, so in local development and tests, and never in production. The document is built on the first request from the controllers and their zod schemas; it includes every route, the `ProblemDetails` schema as the `default` response of every operation, and `/health`.
+The Swagger UI is served at `/docs` and the OpenAPI 3.0 document at `/docs-json` (and `/docs-yaml`). They are enabled whenever `NODE_ENV` is not `production`, so in local development and tests, and never in production. The document is built on the first request from the controllers and their zod schemas; it includes every route, the `ProblemDetails` schema as the `default` and `426` response of every operation, the optional `X-App-Version` / `X-Platform` headers on every operation, and `/health`.
 
 ### Health
 
