@@ -1,0 +1,23 @@
+FROM node:26-trixie-slim
+
+RUN apt-get update \
+  && apt-get install --yes --no-install-recommends procps \
+  && rm -rf /var/lib/apt/lists/* \
+  && npm install --global pnpm@10.34.5 \
+  && mkdir /app \
+  && chown node:node /app
+
+USER node
+WORKDIR /app
+
+COPY --chown=node:node package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY --chown=node:node apps/api/package.json apps/api/
+
+RUN pnpm install --frozen-lockfile --filter @libro/api
+
+COPY --chown=node:node tsconfig.base.json ./
+COPY --chown=node:node apps/api apps/api
+
+WORKDIR /app/apps/api
+
+CMD ["pnpm", "run", "start:dev", "--debug", "0.0.0.0:9229"]

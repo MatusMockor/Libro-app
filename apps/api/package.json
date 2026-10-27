@@ -1,0 +1,35 @@
+{
+  "name": "@libro/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm run start:dev",
+    "start:dev": "nest start --watch",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@nestjs/common": "12.3.1",
+    "@nestjs/config": "12.0.1",
+    "@nestjs/core": "12.3.1",
+    "@nestjs/platform-express": "12.3.1",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "12.0.11",
+    "@nestjs/schematics": "12.0.11",
+    "@nestjs/testing": "12.3.1",
+    "@types/express": "5.0.6",
+    "@types/node": "26.6.5",
+    "@types/supertest": "7.2.1",
+    "supertest": "7.3.1",
+    "typescript": "6.0.3",
+    "vite": "8.3.5",
+    "vitest": "5.0.5"
+  }
+}
