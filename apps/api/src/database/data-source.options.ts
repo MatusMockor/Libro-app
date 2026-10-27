@@ -3,6 +3,7 @@ import type { PostgresDataSourceOptions } from 'typeorm/driver/postgres/Postgres
 import type { SeederOptions } from 'typeorm-extension';
 
 const SOURCE_ROOT = resolve(import.meta.dirname, '..');
+const CONNECTION_TIMEOUT_MS = 5_000;
 
 const sourceFiles = (pattern: string): string => `${SOURCE_ROOT}/${pattern}.{ts,js}`;
 
@@ -13,6 +14,7 @@ export function dataSourceOptions(url: string): PostgresDataSourceOptions {
     synchronize: false,
     installExtensions: false,
     uuidExtension: 'pgcrypto',
+    extra: { connectionTimeoutMillis: CONNECTION_TIMEOUT_MS },
     migrations: [sourceFiles('**/migrations/*')],
   };
 }
