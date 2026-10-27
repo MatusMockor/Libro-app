@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { configModuleOptions } from '../src/config/config-module.options.js';
 import { envFilePaths } from '../src/config/env-file-paths.js';
 import { envSchema } from '../src/config/env.schema.js';
+import { loadEnv } from '../src/config/load-env.js';
 
 describe('config validation', () => {
   afterEach(() => {
@@ -96,5 +97,57 @@ describe('env files', () => {
     }).compile();
 
     expect(moduleRef.get(ConfigService).get<string>('LIBRO_ENV_PROBE')).toBe('from-env-test');
+  });
+});
+
+describe('loadEnv for the TypeORM CLI', () => {
+  let directory: string;
+
+  beforeEach(async () => {
+    directory = await mkdtemp(join(tmpdir(), 'libro-load-env-'));
+    vi.stubEnv('PORT', undefined);
+    vi.stubEnv('LIBRO_ENV_PROBE', undefined);
+  });
+
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    await rm(directory, { recursive: true, force: true });
+  });
+
+  it('loads env files with the same precedence as the api', async () => {
+    await writeFile(join(directory, '.env'), 'PORT=4001\nLIBRO_ENV_PROBE=from-env\n');
+    await writeFile(join(directory, '.env.local'), 'PORT=4002\n');
+
+    const env = loadEnv(envFilePaths('development', directory));
+
+    expect(env.PORT).toBe(4002);
+    expect(process.env.LIBRO_ENV_PROBE).toBe('from-env');
+  });
+
+  it('keeps real environment variables over env files', async () => {
+    vi.stubEnv('DATABASE_URL', 'postgres://libro_app@127.0.0.1:5433/from_process');
+    await writeFile(
+      join(directory, '.env'),
+      'DATABASE_URL=postgres://libro_app@127.0.0.1:5433/from_file\n',
+    );
+
+    const env = loadEnv(envFilePaths('development', directory));
+
+    expect(env.DATABASE_URL).toBe('postgres://libro_app@127.0.0.1:5433/from_process');
+  });
+
+  it('refuses an invalid environment and names every broken variable', () => {
+    vi.stubEnv('PORT', 'not-a-port');
+    vi.stubEnv('DATABASE_URL', 'mysql://root@localhost/libro');
+
+    expect(() => loadEnv([])).toThrow(
+      [
+        'Config validation error:',
+        '✖ must be a number',
+        '  → at PORT',
+        '✖ must be a postgres:// or postgresql:// connection URL',
+        '  → at DATABASE_URL',
+      ].join('\n'),
+    );
   });
 });

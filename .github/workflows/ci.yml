@@ -37,4 +37,15 @@ jobs:
 
       - run: pnpm typecheck
 
+      - name: Start Postgres
+        run: |
+          cp .env.example .env
+          pnpm db:up
+
       - run: pnpm test
+
+      - name: Migrate, check schema drift, seed
+        run: |
+          pnpm db:migrate
+          pnpm db:migration:check
+          pnpm db:seed

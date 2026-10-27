@@ -75,7 +75,59 @@ The Postgres image is the official `postgis/postgis` image with the `pgvector` p
 - database `libro_app` owned by user `libro_app`
 - database `libro_app_test` for tests
 
-The `postgis` and `vector` extensions are installed in the image but not enabled in any database. Enable them in migrations.
+The `postgis` and `vector` packages are installed in the image, but no extension is enabled by the image. Extensions are enabled only by migrations (see below).
+
+## Migrations and seeds
+
+The backend uses TypeORM 1.x in repository mode (`TypeOrmModule.forFeature` + `@InjectRepository`). There is one data source definition in `apps/api/src/database/data-source.options.ts`:
+
+- `dataSourceOptions(url)` - shared by the api (`DatabaseModule`, `TypeOrmModule.forRootAsync` with `DATABASE_URL` from `ConfigService`) and the CLI. `synchronize` is always `false`, in every environment; the schema changes only through migrations.
+- `cliDataSourceOptions(url)` - the same options plus the entity, seeder and factory globs, used by the CLI entry `apps/api/src/database/data-source.ts`.
+
+Discovery, all relative to `apps/api/src` (the api registers entities through `forFeature` with `autoLoadEntities`, the CLI finds them by glob):
+
+| What       | Pattern                     | Example                                                 |
+| ---------- | --------------------------- | ------------------------------------------------------- |
+| Entities   | `**/*.entity.ts`            | `modules/books/book.entity.ts`                          |
+| Migrations | `**/migrations/*.ts`        | `database/migrations/1793115072337-EnableExtensions.ts` |
+| Seeders    | `**/seeds/*.seeder.ts`      | `modules/books/seeds/books.seeder.ts`                   |
+| Factories  | `**/factories/*.factory.ts` | `modules/books/factories/book.factory.ts`               |
+
+A new module under `apps/api/src/modules/<module>/` is picked up without touching any central config.
+
+Scripts (run from the repository root, against `DATABASE_URL` from the root `.env`, so start Postgres with `pnpm db:up` first):
+
+| Script                              | What it does                                                                                        |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `pnpm db:migrate`                   | Runs all pending migrations                                                                         |
+| `pnpm db:migrate:revert`            | Reverts the last executed migration                                                                 |
+| `pnpm db:migration:generate <Name>` | Generates `apps/api/src/database/migrations/<timestamp>-<Name>.ts` from the entity / schema diff    |
+| `pnpm db:migration:create <Name>`   | Creates an empty migration in the same folder (for data migrations or hand-written SQL)             |
+| `pnpm db:migration:check`           | Fails when the entities differ from the migrated database, i.e. a migration is missing (used in CI) |
+| `pnpm db:seed`                      | Runs all seeders (`typeorm-extension`)                                                              |
+
+`generate` and `create` format the new file with Prettier. Review a generated migration before committing it: every migration needs a working `down()` that fully reverts `up()`.
+
+The CLI runs the TypeScript sources directly. Node's built-in type stripping cannot run decorators, so the scripts load [`@oxc-node/core`](https://github.com/oxc-project/oxc-node) (`node --import @oxc-node/core/register`), which uses the same Oxc transformer as Vitest and supports `emitDecoratorMetadata`. The CLI reads the same env files as the api (`.env.local`, `.env`, or `.env.test` with `NODE_ENV=test`), real environment variables win, and validates them with the same schema.
+
+Where things live:
+
+- **Extensions** (`postgis`, `vector`, `unaccent`, `pg_trgm`) are enabled by the first migration in the `public` schema, so their types and functions (`geometry`, `vector`, `unaccent()`, `similarity()`) resolve from every module schema without `search_path` changes. TypeORM's automatic extension install (`installExtensions`) is off, so no extension appears outside a migration. UUID defaults use the built-in `gen_random_uuid()` (`uuidExtension: 'pgcrypto'`, no extension needed on Postgres 13+).
+- **The migrations table** is TypeORM's default `public.migrations`. It is shared infrastructure, not owned by any module.
+
+### Schema per module
+
+Each module owns its own Postgres schema, named after the module:
+
+1. Every entity of the module declares it: `@Entity({ schema: 'books', name: 'books' })`.
+2. The module's first migration creates the schema before its tables: `await queryRunner.createSchema('books', true);`. TypeORM does not generate this line, add it by hand after `db:migration:generate`.
+3. Its `down()` drops the schema after dropping the tables: `await queryRunner.dropSchema('books');`.
+
+Foreign keys, unique constraints and `ON DELETE` rules stay inside a module schema. No foreign key points into another module's schema.
+
+### Seeders and factories
+
+Seeders and factories use [`typeorm-extension`](https://github.com/tada5hi/typeorm-extension). A seeder is a default-exported class implementing `Seeder` in a `seeds/*.seeder.ts` file; a factory is a default-exported `setSeederFactory(...)` in a `factories/*.factory.ts` file. There are no seeders yet, so `pnpm db:seed` currently runs nothing and succeeds.
 
 ## Environment and configuration
 
@@ -110,4 +162,6 @@ pnpm format:check
 
 `lint`, `typecheck` and `test` run through Turborepo in every workspace package.
 
-The same checks run in CI (`.github/workflows/ci.yml`) on every pull request and every push to `main`. A pull request can be merged only when CI is green.
+`pnpm test` needs Postgres: run `pnpm db:up` first. Tests use only the `libro_app_test` database (the Vitest config refuses any database whose name does not end with `_test`), never the dev database `libro_app`. The migration test runs, reverts and re-applies every migration there and leaves it migrated. This is temporary until tests get their own Postgres via Testcontainers (LIB-17).
+
+The same checks run in CI (`.github/workflows/ci.yml`) on every pull request and every push to `main`. CI also starts the same Postgres image as `pnpm db:up`, runs the tests against it, then runs `pnpm db:migrate`, `pnpm db:migration:check` (fails when an entity changed without a migration) and `pnpm db:seed`. A pull request can be merged only when CI is green.

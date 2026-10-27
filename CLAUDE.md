@@ -68,9 +68,10 @@ Later (design so they plug in via events and interfaces):
 
 ## Database rules
 
-- PostgreSQL only. Schema per module.
-- Schema changes go **only through migrations** (TypeORM CLI, `up()` + `down()`). Data migrations live in `up()` too.
-- `synchronize: true` is allowed only locally, **never** in staging or production.
+- PostgreSQL only. Schema per module: entities declare `schema: '<module>'`, the module's first migration creates the schema (`queryRunner.createSchema('<module>', true)`) and its `down()` drops it (`queryRunner.dropSchema('<module>')`).
+- Schema changes go **only through migrations** (TypeORM CLI, `up()` + `down()`). Data migrations live in `up()` too. Migrations live in a `migrations/` folder (`pnpm db:migration:generate <Name>` writes to `apps/api/src/database/migrations/`).
+- `synchronize` is always `false`, in every environment, including local. CI fails when an entity changes without a migration (`pnpm db:migration:check`).
+- Extensions are enabled only in migrations, in the `public` schema. TypeORM's `installExtensions` stays off.
 - Use foreign keys, unique constraints and `ON DELETE` rules inside a module so integrity (and GDPR deletion) is enforced by the database, not by hope.
 - Use JSONB for genuinely flexible data, not as a way to skip modelling.
 - Seeders / factories via `typeorm-extension`.
