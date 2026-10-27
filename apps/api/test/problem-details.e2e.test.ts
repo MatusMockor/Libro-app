@@ -53,6 +53,29 @@ describe('problem details for errors', () => {
     });
   });
 
+  test('hides the detail of a 5xx ProblemException, keeps its code and logs it', async ({
+    app,
+    http,
+  }) => {
+    const logger = new CapturingLogger();
+    app.useLogger(logger);
+
+    const response = await http.get('/v1/probe/problem-unavailable');
+
+    expect(response.status).toBe(503);
+    expect(response.headers['content-type']).toMatch(/^application\/problem\+json/);
+    expect(response.body).toMatchObject({
+      title: 'Service Unavailable',
+      status: 503,
+      code: 'catalogue_unavailable',
+      detail: 'Service Unavailable',
+    });
+    expect(response.text).not.toContain('10.0.0.7');
+    expect(response.body).not.toHaveProperty('errors');
+    expect(logger.errors).toHaveLength(1);
+    expect(logger.errors[0]).toContain('open library at 10.0.0.7:8080 timed out');
+  });
+
   test('hides the message of a 5xx HttpException and logs it', async ({ app, http }) => {
     const logger = new CapturingLogger();
     app.useLogger(logger);

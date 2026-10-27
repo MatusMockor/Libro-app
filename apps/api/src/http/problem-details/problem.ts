@@ -25,3 +25,7 @@ export function problem({ status, code, detail, errors }: ProblemInit): Problem 
 export function isServerError(status: number): boolean {
   return status >= 500;
 }
+
+export function statusPhrase(status: number): string {
+  return STATUS_CODES[status] ?? `HTTP ${String(status)}`;
+}

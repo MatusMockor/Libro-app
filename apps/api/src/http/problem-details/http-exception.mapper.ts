@@ -1,6 +1,5 @@
-import { STATUS_CODES } from 'node:http';
 import { HttpException } from '@nestjs/common';
-import { isServerError, problem, type Problem } from './problem.js';
+import { isServerError, problem, statusPhrase, type Problem } from './problem.js';
 import type { ProblemMapper } from './problem-mapper.js';
 
 export class HttpExceptionMapper implements ProblemMapper {
@@ -10,7 +9,7 @@ export class HttpExceptionMapper implements ProblemMapper {
     }
 
     const status = exception.getStatus();
-    const phrase = STATUS_CODES[status] ?? `HTTP ${String(status)}`;
+    const phrase = statusPhrase(status);
 
     return problem({ status, code: toCode(phrase), detail: publicDetail(exception, phrase) });
   }

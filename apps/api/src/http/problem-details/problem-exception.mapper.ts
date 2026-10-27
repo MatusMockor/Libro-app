@@ -1,4 +1,4 @@
-import type { Problem } from './problem.js';
+import { isServerError, problem, statusPhrase, type Problem } from './problem.js';
 import { ProblemException } from './problem.exception.js';
 import type { ProblemMapper } from './problem-mapper.js';
 
@@ -8,6 +8,18 @@ export class ProblemExceptionMapper implements ProblemMapper {
       return undefined;
     }
 
-    return exception.problem;
+    return publicProblem(exception.problem);
   }
+}
+
+function publicProblem(details: Problem): Problem {
+  if (!isServerError(details.status)) {
+    return details;
+  }
+
+  return problem({
+    status: details.status,
+    code: details.code,
+    detail: statusPhrase(details.status),
+  });
 }

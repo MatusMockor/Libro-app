@@ -1,6 +1,7 @@
-import { setTimeout as delay } from 'node:timers/promises';
 import { Injectable } from '@nestjs/common';
-import { DataSource } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
+import pg from 'pg';
+import type { Env } from '../config/env.schema.js';
 import type { HealthIndicator } from './health-indicator.js';
 
 const CHECK_TIMEOUT_MS = 2_000;
@@ -9,27 +10,32 @@ const CHECK_TIMEOUT_MS = 2_000;
 export class DatabaseHealthIndicator implements HealthIndicator {
   readonly name = 'database';
 
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(private readonly config: ConfigService<Env, true>) {}
 
   async isHealthy(): Promise<boolean> {
-    const timeout = new AbortController();
+    const client = this.createClient();
 
     try {
-      return await Promise.race([this.ping(), this.timedOut(timeout.signal)]);
+      await client.connect();
+      await client.query('SELECT 1');
+      return true;
     } catch {
       return false;
     } finally {
-      timeout.abort();
+      await client.end();
     }
   }
 
-  private async ping(): Promise<boolean> {
-    await this.dataSource.query('SELECT 1');
-    return true;
-  }
+  private createClient(): pg.Client {
+    const client = new pg.Client({
+      connectionString: this.config.get('DATABASE_URL', { infer: true }),
+      connectionTimeoutMillis: CHECK_TIMEOUT_MS,
+      query_timeout: CHECK_TIMEOUT_MS,
+    });
+    client.on('error', ignore);
 
-  private async timedOut(signal: AbortSignal): Promise<boolean> {
-    await delay(CHECK_TIMEOUT_MS, undefined, { signal });
-    return false;
+    return client;
   }
 }
+
+function ignore(): void {}

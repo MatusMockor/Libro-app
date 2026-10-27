@@ -49,26 +49,40 @@ export class ProbeController {
   }
 
   @Get('conflict')
-  conflict(): never {
-    throw new ConflictException('The book is already on the shelf.');
+  conflict(): Promise<never> {
+    return Promise.reject(new ConflictException('The book is already on the shelf.'));
   }
 
   @Get('problem')
-  problem(): never {
-    throw new ProblemException({
-      status: 409,
-      code: 'book_already_finished',
-      detail: 'The book is already finished.',
-    });
+  problem(): Promise<never> {
+    return Promise.reject(
+      new ProblemException({
+        status: 409,
+        code: 'book_already_finished',
+        detail: 'The book is already finished.',
+      }),
+    );
+  }
+
+  @Get('problem-unavailable')
+  problemUnavailable(): Promise<never> {
+    return Promise.reject(
+      new ProblemException({
+        status: 503,
+        code: 'catalogue_unavailable',
+        detail: 'open library at 10.0.0.7:8080 timed out',
+        errors: [{ path: 'upstream', message: 'host 10.0.0.7 refused', code: 'upstream_down' }],
+      }),
+    );
   }
 
   @Get('unavailable')
-  unavailable(): never {
-    throw new ServiceUnavailableException('redis at 10.0.0.3:6379 is down');
+  unavailable(): Promise<never> {
+    return Promise.reject(new ServiceUnavailableException('redis at 10.0.0.3:6379 is down'));
   }
 
   @Get('crash')
-  crash(): never {
-    throw new Error('connection to postgres://libro:secret@db failed');
+  crash(): Promise<never> {
+    return Promise.reject(new Error('connection to postgres://libro:secret@db failed'));
   }
 }

@@ -8,5 +8,6 @@ export class ProblemException extends HttpException {
     const details = problem(init);
     super(details, details.status);
     this.problem = details;
+    this.message = details.detail;
   }
 }
