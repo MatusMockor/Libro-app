@@ -87,6 +87,9 @@ Mobile users do not update immediately, so old app versions must keep working.
 1. **Backward-compatible changes by default.** Adding fields, optional params and new endpoints needs no new version. Removing / renaming a field, changing its type or meaning, or adding a required param is breaking and needs a new version.
 2. **URI versioning from day one:** `app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' })`, routes under `/v1/...`. Version only the endpoints that changed (`@Version('2')` or a `V2` controller).
 3. **Minimum supported app version.** The app sends `X-App-Version` and `X-Platform` on every request. The backend keeps a per-platform minimum and answers older clients with `426 Upgrade Required`; the app then shows a forced-update screen.
+   - `X-Platform` is `ios` or `android`, `X-App-Version` is `MAJOR.MINOR.PATCH`; minimums come from `MIN_APP_VERSION_IOS` / `MIN_APP_VERSION_ANDROID` (default `0.0.0`).
+   - Neither header: the request passes (health checks, curl, web). Both valid and below the minimum: `426` with code `app_update_required`. Only one header, unknown platform or malformed version: `400` with code `invalid_app_client`.
+   - Every request with app headers that reaches a route logs one `client platform=... version=... outcome=...` line, so usage of old versions can be counted. Requests without them are not logged.
 4. **Expo OTA (EAS Update)** for JS-only changes; native changes still need a store release and must match `runtimeVersion`.
 5. **Deprecation:** keep an old API version for 3-6 months, track usage by `X-App-Version`, remove it only when unused or below the minimum supported version.
 6. The app must tolerate unknown fields and unknown enum values (ignore or show a fallback, never crash).

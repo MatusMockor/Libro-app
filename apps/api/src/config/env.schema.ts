@@ -1,7 +1,23 @@
 import { z } from 'zod';
+import { AppVersion } from '../shared/app-version.js';
 
 const requiredOr = (message: string) => (issue: { input?: unknown }) =>
   issue.input === undefined ? 'is required' : message;
+
+const APP_VERSION_ERROR = 'must be a version like 1.4.0';
+
+const appVersion = z
+  .string({ error: APP_VERSION_ERROR })
+  .default('0.0.0')
+  .transform((value, context) => {
+    const version = AppVersion.parse(value);
+    if (!version) {
+      context.issues.push({ code: 'custom', input: value, message: APP_VERSION_ERROR });
+      return z.NEVER;
+    }
+
+    return version;
+  });
 
 export const envSchema = z.object({
   NODE_ENV: z
@@ -19,6 +35,8 @@ export const envSchema = z.object({
     protocol: /^postgres(ql)?$/,
     error: requiredOr('must be a postgres:// or postgresql:// connection URL'),
   }),
+  MIN_APP_VERSION_IOS: appVersion,
+  MIN_APP_VERSION_ANDROID: appVersion,
 });
 
 export type Env = z.infer<typeof envSchema>;
