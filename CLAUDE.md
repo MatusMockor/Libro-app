@@ -22,6 +22,7 @@ It is NOT a dating app (people meet in groups of 3+, around books, in public pla
 | ORM | TypeORM 1.x (`typeorm@^1.1` + `@nestjs/typeorm@^12`, confirmed compatible), repository mode (`TypeOrmModule.forFeature` + `@InjectRepository`) |
 | Database | PostgreSQL (with PostGIS, pgvector, `unaccent`, `pg_trgm` when needed) |
 | Validation / DTOs | zod 4 schemas through Nest 12's built-in Standard Schema support (`@Body({ schema })`, global `StandardSchemaValidationPipe`); the same schemas feed OpenAPI (`@nestjs/swagger` 12) and can move to `packages/contracts` to be shared with the app |
+| Auth | Own JWT: short-lived access JWT (`@nestjs/jwt`) + rotated opaque refresh tokens, argon2id passwords, `@nestjs/throttler` (see [Auth](#auth)) |
 | Mobile | Expo / React Native |
 | Photo storage | Object storage (S3 compatible), GPS / EXIF stripped on upload |
 | Later | Redis (realtime presence, BullMQ queues), Stripe |
@@ -34,6 +35,8 @@ Rejected and why (do not reopen without a new reason):
 - **Separate repos for API and app** - the tree engine and API types must be shared directly; separate repos would mean publishing and version-syncing packages.
 - **Laravel / Symfony** - would lose shared TypeScript (tree engine, API types) with the app.
 - **class-validator / class-transformer** - decorator DTO classes cannot be shared with the app as plain schemas; zod covers validation and OpenAPI natively on Nest 12.
+- **Better Auth** - session-centric and owns its tables through its own adapters, outside our TypeORM repositories, migrations and module rules; own JWT keeps auth a normal module (own `auth` schema, repositories, domain events) and fits a mobile-only client with bearer tokens.
+- **Passport** - an extra layer for what a single guard and `@nestjs/jwt` already do.
 - **nestjs-zod** - no Nest 12 support (peer `@nestjs/common` up to 11), and Nest 12 + `@nestjs/swagger` 12 already do what it adds.
 
 ## Architecture: modular monolith
@@ -68,6 +71,18 @@ Later (design so they plug in via events and interfaces):
 - Faking reading must be burdensome: trees come from many real sessions with checkpoints, not from a single action.
 - The engine is a pure function, shareable between backend (validation, anti-cheat) and the app (rendering, animation).
 - **The engine is versioned.** Every tree records the `treeEngineVersion` it was computed with. Old algorithm versions stay available so finished trees never change shape. The API returns the engine version so the app knows which algorithm to render with.
+
+## Auth
+
+Own JWT, no auth framework.
+
+- **Access token:** JWT signed with `@nestjs/jwt` (HS256, secret from env), lifetime 15 minutes, claims only `sub` (user id) and standard ones - no email or other personal data. Sent as `Authorization: Bearer <token>`.
+- **Refresh token:** opaque random value (32 bytes), stored only as a SHA-256 hash in the `auth` schema, lifetime 30 days. Every refresh rotates it (old one revoked, new one issued in the same family). Reusing a revoked refresh token revokes the whole family. Logout revokes the current token.
+- **Passwords:** argon2id (`@node-rs/argon2`). Never logged, never returned.
+- **Protected by default:** a global auth guard; open endpoints opt out with `@Public()` (`/health`, register, login, refresh). The current user comes from a `@CurrentUser()` decorator, never from the request body.
+- **Rate limit:** `@nestjs/throttler` on register, login and refresh. Login errors do not reveal whether the email exists.
+- **Events:** the auth module publishes `UserRegistered`; other modules (e.g. `profiles`) react to it and never read auth tables.
+- **Google / Apple later:** the app signs in with the provider, the backend verifies the provider ID token (Google JWKS / Apple JWKS) and issues its own tokens. The app keeps tokens in `expo-secure-store`.
 
 ## Database rules
 
@@ -132,5 +147,4 @@ Mobile users do not update immediately, so old app versions must keep working.
 
 ## Open decisions
 
-- Auth provider: Better Auth vs. own JWT (+ Apple / Google sign-in).
 - Production hosting provider (EU region required).
