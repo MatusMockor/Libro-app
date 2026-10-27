@@ -46,11 +46,13 @@ Builds the images, starts Postgres and the api, and keeps watching:
 
 Endpoints (all bound to `127.0.0.1` only):
 
-| What             | Default                        | Variable         |
-| ---------------- | ------------------------------ | ---------------- |
-| api health check | `http://127.0.0.1:3000/health` | `API_PORT`       |
-| Node inspector   | `127.0.0.1:9229`               | `API_DEBUG_PORT` |
-| Postgres         | `127.0.0.1:5433`               | `DB_PORT`        |
+| What                 | Default                           | Variable         |
+| -------------------- | --------------------------------- | ---------------- |
+| api health check     | `http://127.0.0.1:3000/health`    | `API_PORT`       |
+| OpenAPI (Swagger UI) | `http://127.0.0.1:3000/docs`      | `API_PORT`       |
+| OpenAPI (JSON)       | `http://127.0.0.1:3000/docs-json` | `API_PORT`       |
+| Node inspector       | `127.0.0.1:9229`                  | `API_DEBUG_PORT` |
+| Postgres             | `127.0.0.1:5433`                  | `DB_PORT`        |
 
 Other scripts:
 
@@ -128,6 +130,105 @@ Foreign keys, unique constraints and `ON DELETE` rules stay inside a module sche
 
 Seeders and factories use [`typeorm-extension`](https://github.com/tada5hi/typeorm-extension). A seeder is a default-exported class implementing `Seeder` in a `seeds/*.seeder.ts` file; a factory is a default-exported `setSeederFactory(...)` in a `factories/*.factory.ts` file. There are no seeders yet, so `pnpm db:seed` currently runs nothing and succeeds.
 
+## API
+
+The api code that is not a domain module lives in `apps/api/src/http/` (validation, error format, OpenAPI) and `apps/api/src/health/`. Both are wired in `AppModule` and `configureApp`, so tests and `main.ts` get exactly the same behaviour.
+
+### Versioning
+
+URI versioning: every route is served under `/v1/...` unless its controller says otherwise (`defaultVersion: '1'`). A route without the prefix (`/books`) or with an unknown version (`/v2/books`) is a 404. Only infrastructure endpoints such as `/health` are `VERSION_NEUTRAL`. See [CLAUDE.md](CLAUDE.md#api-versioning) for what counts as a breaking change.
+
+### Validation and DTOs
+
+Input is validated with [zod](https://zod.dev) schemas through Nest 12's built-in Standard Schema support: the schema goes into the parameter decorator, the global `StandardSchemaValidationPipe` validates (and transforms, e.g. `z.coerce.number()` for query strings) the value before the handler runs, and `@nestjs/swagger` turns the same schema into OpenAPI. There is no DTO class; the DTO type is inferred from the schema.
+
+```ts
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { z } from 'zod';
+
+export const createBookSchema = z
+  .object({
+    title: z.string().min(1),
+    pages: z.number().int().positive(),
+  })
+  .meta({ id: 'CreateBook' });
+
+export type CreateBookDto = z.infer<typeof createBookSchema>;
+
+const listBooksQuerySchema = z.object({ limit: z.coerce.number().int().min(1).max(50) });
+const bookParamsSchema = z.object({ id: z.uuid() });
+
+@Controller('books')
+export class BooksController {
+  @Post()
+  create(@Body({ schema: createBookSchema }) book: CreateBookDto) {}
+
+  @Get()
+  list(@Query({ schema: listBooksQuerySchema }) query: z.infer<typeof listBooksQuerySchema>) {}
+
+  @Get(':id')
+  find(@Param({ schema: bookParamsSchema }) params: z.infer<typeof bookParamsSchema>) {}
+}
+```
+
+- A parameter without a `schema` is passed through unvalidated, so every body, query and params object declares one.
+- `.meta({ id })` names the schema in the OpenAPI components (`#/components/schemas/CreateBook`); without it the schema is inlined.
+- **Unknown fields are stripped**, not rejected: `z.object` drops keys the schema does not declare, so the handler never sees them (no mass assignment) and a client sending an extra field still works. Use `z.strictObject` only where rejecting unknown fields is a deliberate part of the contract.
+
+### Error format
+
+Every error response, from validation, unknown routes, malformed JSON, thrown `HttpException`s and unexpected errors, is [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457) with `Content-Type: application/problem+json`, written by the global `ProblemDetailsFilter`:
+
+```json
+{
+  "type": "about:blank",
+  "title": "Bad Request",
+  "status": 400,
+  "detail": "The request contains invalid fields.",
+  "instance": "/v1/books",
+  "code": "validation_failed",
+  "errors": [
+    { "path": "pages", "message": "Too small: expected number to be >0", "code": "too_small" }
+  ]
+}
+```
+
+| Field      | Meaning                                                                                                                                                                                     |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `type`     | Always `about:blank` for now, so `title` is the HTTP status phrase                                                                                                                          |
+| `title`    | HTTP status phrase (`Not Found`, `Conflict`, ...)                                                                                                                                           |
+| `status`   | HTTP status code                                                                                                                                                                            |
+| `detail`   | Human-readable explanation, for logs and developers; do not parse it                                                                                                                        |
+| `instance` | Request path, without the query string                                                                                                                                                      |
+| `code`     | Stable machine-readable code, the field clients branch on                                                                                                                                   |
+| `errors`   | Only for `validation_failed`: one entry per invalid field, `path` is dot-separated (`tags.1`), `code` is the zod issue code (`invalid_type`, `too_small`, `too_big`, `invalid_format`, ...) |
+
+Codes:
+
+- `validation_failed` (400) - a body, query or params schema rejected the input.
+- A code derived from the status phrase for any Nest `HttpException`: `bad_request` (also malformed JSON), `not_found` (also unknown routes), `conflict`, `payload_too_large`, ...
+- An own code for domain errors: `throw new ProblemException({ status: 409, code: 'book_already_finished', detail: '...' })`.
+- `internal_server_error` (500) for anything that is not an `HttpException`.
+
+5xx responses never expose internal messages or stack traces: an unexpected error answers `detail: "An unexpected error occurred."`, a 5xx `HttpException` answers its status phrase. The original error is logged server-side with Nest's `Logger`. Only `ProblemException` can send a deliberate 5xx `detail`.
+
+The shape is part of the `v1` contract and covered by `apps/api/test/api-contract.e2e.test.ts`.
+
+### OpenAPI
+
+The Swagger UI is served at `/docs` and the OpenAPI 3.0 document at `/docs-json` (and `/docs-yaml`). They are enabled whenever `NODE_ENV` is not `production`, so in local development and tests, and never in production. The document is built on the first request from the controllers and their zod schemas; it includes every route, the `ProblemDetails` schema as the `default` response of every operation, and `/health`.
+
+### Health
+
+`GET /health` (version neutral) pings the database with `SELECT 1`:
+
+| State         | Status | Body                                                      |
+| ------------- | ------ | --------------------------------------------------------- |
+| database up   | `200`  | `{ "status": "ok", "checks": { "database": "up" } }`      |
+| database down | `503`  | `{ "status": "error", "checks": { "database": "down" } }` |
+
+The body keeps the same `application/json` shape for both answers so monitoring can read `checks` (it is a probe report, not an error, so it is the one non-2xx answer that is not Problem Details). The Docker Compose healthcheck of the api only looks at the status code. New checks (e.g. Redis) are added as `HealthIndicator`s under the `HEALTH_INDICATORS` token and appear as new keys in `checks`, which is backward compatible.
+
 ## Environment and configuration
 
 Configuration comes only from environment variables, validated at startup. The api refuses to start with a readable error listing every broken variable, for example:
@@ -196,6 +297,15 @@ describe('GET /health', () => {
     expect(response.status).toBe(200);
   });
 });
+```
+
+A file that needs routes the app does not have (for example to exercise validation or error mapping before a real endpoint exists) builds its own `test` with extra modules. The test-only modules live in `apps/api/test/support/` (see `probe/`), never in `src`; they still go through the real `configureApp`, pipe, filter and versioning:
+
+```ts
+import { integrationTest } from './support/integration-test.js';
+import { ProbeModule } from './support/probe/probe.module.js';
+
+const test = integrationTest({ imports: [ProbeModule] });
 ```
 
 `test.beforeAll(async ({ dataSource }) => ...)` can use the file fixtures, for example to create a test-only table. Rows inserted there are gone before the first test, because every test starts from empty tables: arrange data inside the test.

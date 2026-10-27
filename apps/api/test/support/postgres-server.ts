@@ -30,12 +30,28 @@ export class PostgresServer {
     await this.execute(`DROP DATABASE ${pg.escapeIdentifier(database)} WITH (FORCE)`);
   }
 
-  private async execute(sql: string): Promise<void> {
+  async refuseConnections(database: string): Promise<void> {
+    await this.execute(
+      `ALTER DATABASE ${pg.escapeIdentifier(database)} WITH ALLOW_CONNECTIONS false`,
+    );
+    await this.execute(
+      'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
+      [database],
+    );
+  }
+
+  async allowConnections(database: string): Promise<void> {
+    await this.execute(
+      `ALTER DATABASE ${pg.escapeIdentifier(database)} WITH ALLOW_CONNECTIONS true`,
+    );
+  }
+
+  private async execute(sql: string, values: unknown[] = []): Promise<void> {
     const client = new pg.Client({ connectionString: this.url });
     await client.connect();
 
     try {
-      await client.query(sql);
+      await client.query(sql, values);
     } finally {
       await client.end();
     }

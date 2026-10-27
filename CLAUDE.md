@@ -21,6 +21,7 @@ It is NOT a dating app (people meet in groups of 3+, around books, in public pla
 | Backend framework | NestJS (TypeScript) |
 | ORM | TypeORM 1.x (`typeorm@^1.1` + `@nestjs/typeorm@^12`, confirmed compatible), repository mode (`TypeOrmModule.forFeature` + `@InjectRepository`) |
 | Database | PostgreSQL (with PostGIS, pgvector, `unaccent`, `pg_trgm` when needed) |
+| Validation / DTOs | zod 4 schemas through Nest 12's built-in Standard Schema support (`@Body({ schema })`, global `StandardSchemaValidationPipe`); the same schemas feed OpenAPI (`@nestjs/swagger` 12) and can move to `packages/contracts` to be shared with the app |
 | Mobile | Expo / React Native |
 | Photo storage | Object storage (S3 compatible), GPS / EXIF stripped on upload |
 | Later | Redis (realtime presence, BullMQ queues), Stripe |
@@ -32,6 +33,8 @@ Rejected and why (do not reopen without a new reason):
 - **Microservices** - not for MVP; module boundaries keep the option open.
 - **Separate repos for API and app** - the tree engine and API types must be shared directly; separate repos would mean publishing and version-syncing packages.
 - **Laravel / Symfony** - would lose shared TypeScript (tree engine, API types) with the app.
+- **class-validator / class-transformer** - decorator DTO classes cannot be shared with the app as plain schemas; zod covers validation and OpenAPI natively on Nest 12.
+- **nestjs-zod** - no Nest 12 support (peer `@nestjs/common` up to 11), and Nest 12 + `@nestjs/swagger` 12 already do what it adds.
 
 ## Architecture: modular monolith
 
@@ -88,6 +91,14 @@ Mobile users do not update immediately, so old app versions must keep working.
 5. **Deprecation:** keep an old API version for 3-6 months, track usage by `X-App-Version`, remove it only when unused or below the minimum supported version.
 6. The app must tolerate unknown fields and unknown enum values (ignore or show a fallback, never crash).
 7. **Contract tests** assert that `v1` response shapes stay unchanged.
+
+## API input and errors
+
+- **Every input has a zod schema:** body, query and params are declared with `@Body({ schema })`, `@Query({ schema })`, `@Param({ schema })`. A parameter without a schema is not validated.
+- **Unknown request fields are stripped,** not rejected (`z.object`). Use `z.strictObject` only where rejecting is a deliberate part of the contract.
+- **Every error is RFC 9457 Problem Details** (`application/problem+json`: `type`, `title`, `status`, `detail`, `instance`, `code`, plus `errors[]` with `path`, `message`, `code` for validation). Only the global `ProblemDetailsFilter` writes error responses. Clients branch on `code`, never on `detail`. The one exception is `/health`, which answers `503` with its own health report (same shape as its `200`).
+- Throw `ProblemException` with an own `code` for domain errors; plain Nest `HttpException`s get a code derived from the status (`not_found`, `conflict`, ...). 5xx never expose internal messages; they are logged server-side.
+- The error shape is part of the `v1` contract: changing it needs a new version.
 
 ## Testing
 
