@@ -1,3 +1,4 @@
+import { match } from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseEnv } from 'node:util';
@@ -10,10 +11,19 @@ const TEST_ENV_DEFAULTS = {
 
 const testEnvFile = resolve(import.meta.dirname, '../../.env.test');
 const testEnvOverrides = existsSync(testEnvFile) ? parseEnv(readFileSync(testEnvFile, 'utf8')) : {};
+const testEnv = { ...TEST_ENV_DEFAULTS, ...testEnvOverrides, NODE_ENV: 'test' };
+
+match(
+  new URL(testEnv.DATABASE_URL).pathname,
+  /_test$/,
+  'Tests must use a database whose name ends with _test',
+);
 
 export default defineConfig({
   test: {
     include: ['test/**/*.test.ts'],
-    env: { ...TEST_ENV_DEFAULTS, ...testEnvOverrides, NODE_ENV: 'test' },
+    fileParallelism: false,
+    env: testEnv,
+    execArgv: ['--import', '@oxc-node/core/register'],
   },
 });

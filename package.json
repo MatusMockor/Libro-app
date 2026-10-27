@@ -17,7 +17,13 @@
     "dev:host": "turbo run dev",
     "db:up": "docker compose up --detach --wait postgres",
     "db:down": "docker compose down",
-    "db:reset": "docker compose down --volumes && docker compose up --detach --wait postgres"
+    "db:reset": "docker compose down --volumes && docker compose up --detach --wait postgres",
+    "db:migrate": "pnpm --filter @libro/api run migration:run",
+    "db:migrate:revert": "pnpm --filter @libro/api run migration:revert",
+    "db:migration:generate": "pnpm --filter @libro/api run migration:generate",
+    "db:migration:create": "pnpm --filter @libro/api run migration:create",
+    "db:migration:check": "pnpm --filter @libro/api run migration:check",
+    "db:seed": "pnpm --filter @libro/api run seed:run"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
