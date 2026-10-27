@@ -12,6 +12,7 @@ describe('integration test harness', () => {
     await dataSource.query(
       'CREATE TABLE harness_probe.notes (id serial PRIMARY KEY, body text NOT NULL UNIQUE)',
     );
+    await dataSource.query('INSERT INTO harness_probe.notes (body) VALUES ($1)', ['left over']);
   });
 
   test('serves the full app over HTTP', async ({ http }) => {
@@ -29,6 +30,8 @@ describe('integration test harness', () => {
   });
 
   test('starts every test with empty tables and reset identities', async ({ dataSource }) => {
+    expect(await dataSource.query('SELECT id FROM harness_probe.notes')).toEqual([]);
+
     await dataSource.query('INSERT INTO harness_probe.notes (body) VALUES ($1)', ['same note']);
 
     const notes = await dataSource.query<Note[]>('SELECT id, body FROM harness_probe.notes');
