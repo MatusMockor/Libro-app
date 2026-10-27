@@ -6,6 +6,11 @@ import type { HealthIndicator } from './health-indicator.js';
 
 const CHECK_TIMEOUT_MS = 2_000;
 
+const PING: pg.QueryConfig & { query_timeout: number } = {
+  text: 'SELECT 1',
+  query_timeout: CHECK_TIMEOUT_MS,
+};
+
 @Injectable()
 export class DatabaseHealthIndicator implements HealthIndicator {
   readonly name = 'database';
@@ -17,7 +22,7 @@ export class DatabaseHealthIndicator implements HealthIndicator {
 
     try {
       await client.connect();
-      await client.query('SELECT 1');
+      await client.query(PING);
       return true;
     } catch {
       return false;
