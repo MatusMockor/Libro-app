@@ -1,29 +1,11 @@
-import { match } from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { parseEnv } from 'node:util';
 import { defineConfig } from 'vitest/config';
-
-const TEST_ENV_DEFAULTS = {
-  PORT: '3000',
-  DATABASE_URL: 'postgres://libro_app:libro_app@127.0.0.1:5433/libro_app_test',
-};
-
-const testEnvFile = resolve(import.meta.dirname, '../../.env.test');
-const testEnvOverrides = existsSync(testEnvFile) ? parseEnv(readFileSync(testEnvFile, 'utf8')) : {};
-const testEnv = { ...TEST_ENV_DEFAULTS, ...testEnvOverrides, NODE_ENV: 'test' };
-
-match(
-  new URL(testEnv.DATABASE_URL).pathname,
-  /_test$/,
-  'Tests must use a database whose name ends with _test',
-);
 
 export default defineConfig({
   test: {
     include: ['test/**/*.test.ts'],
-    fileParallelism: false,
-    env: testEnv,
+    env: { NODE_ENV: 'test' },
+    globalSetup: ['test/support/global-setup.ts'],
+    setupFiles: ['test/support/database-per-file.setup.ts'],
     execArgv: ['--import', '@oxc-node/core/register'],
   },
 });

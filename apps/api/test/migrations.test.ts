@@ -27,7 +27,6 @@ describe('database migrations', () => {
   });
 
   afterAll(async () => {
-    await dataSource.runMigrations();
     await dataSource.destroy();
   });
 

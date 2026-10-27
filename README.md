@@ -4,15 +4,15 @@ Monorepo for "read more", a calm, book-only social app for readers, starting fro
 
 ## Layout
 
-| Path                 | What                                                       |
-| -------------------- | ---------------------------------------------------------- |
-| `apps/api`           | Backend - NestJS modular monolith                          |
-| `packages/`          | Shared packages (tree engine, API contracts) - none yet    |
-| `docker/postgres`    | Local Postgres image (PostGIS + pgvector) and init scripts |
-| `docker-compose.yml` | Local dev environment (Postgres + api with hot reload)     |
-| `turbo.json`         | Task pipeline for `lint`, `typecheck`, `test`, `dev`       |
-| `tsconfig.base.json` | Shared strict TypeScript config                            |
-| `eslint.config.js`   | Shared ESLint flat config                                  |
+| Path                 | What                                                      |
+| -------------------- | --------------------------------------------------------- |
+| `apps/api`           | Backend - NestJS modular monolith                         |
+| `packages/`          | Shared packages (tree engine, API contracts) - none yet   |
+| `docker/postgres`    | Postgres image (PostGIS + pgvector) for dev, CI and tests |
+| `docker-compose.yml` | Local dev environment (Postgres + api with hot reload)    |
+| `turbo.json`         | Task pipeline for `lint`, `typecheck`, `test`, `dev`      |
+| `tsconfig.base.json` | Shared strict TypeScript config                           |
+| `eslint.config.js`   | Shared ESLint flat config                                 |
 
 ## Prerequisites
 
@@ -68,12 +68,11 @@ Other scripts:
 
 Everything is namespaced under the compose project `libro-app`: containers `libro-app-postgres` and `libro-app-api`, network `libro-app_default`, volume `libro-app-pgdata`. Host ports are bound to `127.0.0.1` and never use `5432`. `db:reset` removes only `libro-app-pgdata`; no script runs global Docker commands such as `prune`.
 
+`pnpm test` adds its own resources through Testcontainers (see [Testing](#testing)): the image `libro-app-postgres:test`, which is kept as a build cache, a Postgres container with a random name and a random host port, and the Testcontainers reaper (`testcontainers-ryuk-*`). The containers carry the label `org.testcontainers=true`, the Postgres data lives in a `tmpfs`, and both containers are removed when the run ends, also when it crashes (the reaper removes what is left and exits a few seconds after the test process).
+
 ## Database
 
-The Postgres image is the official `postgis/postgis` image with the `pgvector` package added. On the first start of an empty volume it creates:
-
-- database `libro_app` owned by user `libro_app`
-- database `libro_app_test` for tests
+The Postgres image is the official `postgis/postgis` image with the `pgvector` package added. On the first start of an empty volume it creates the database `libro_app` owned by user `libro_app`. Tests do not use it, they run against their own container (see [Testing](#testing)).
 
 The `postgis` and `vector` packages are installed in the image, but no extension is enabled by the image. Extensions are enabled only by migrations (see below).
 
@@ -149,7 +148,7 @@ All `.env*` files live in the repository root, are gitignored (except `.env.exam
 
 `DATABASE_URL` in `.env` is the host view (`127.0.0.1:DB_PORT`). Inside Docker Compose the api gets its own `DATABASE_URL` pointing to the `postgres` service, built from `POSTGRES_USER`, `POSTGRES_PASSWORD` and `POSTGRES_DB`.
 
-Tests run with `NODE_ENV=test` and safe defaults from `apps/api/vitest.config.ts`. Create an optional `.env.test` in the root to override them.
+Tests run with `NODE_ENV=test`, so the api loads an optional root `.env.test`. `DATABASE_URL` always comes from the test harness and cannot be overridden there.
 
 ## Checks
 
@@ -162,6 +161,47 @@ pnpm format:check
 
 `lint`, `typecheck` and `test` run through Turborepo in every workspace package.
 
-`pnpm test` needs Postgres: run `pnpm db:up` first. Tests use only the `libro_app_test` database (the Vitest config refuses any database whose name does not end with `_test`), never the dev database `libro_app`. The migration test runs, reverts and re-applies every migration there and leaves it migrated. This is temporary until tests get their own Postgres via Testcontainers (LIB-17).
+`pnpm test` needs only a running Docker daemon, no `pnpm db:up` and no `.env` (see [Testing](#testing)).
 
-The same checks run in CI (`.github/workflows/ci.yml`) on every pull request and every push to `main`. CI also starts the same Postgres image as `pnpm db:up`, runs the tests against it, then runs `pnpm db:migrate`, `pnpm db:migration:check` (fails when an entity changed without a migration) and `pnpm db:seed`. A pull request can be merged only when CI is green.
+Turborepo caches `test` like `lint` and `typecheck`: the tests are hermetic, so a run is replayed from the cache while nothing they depend on changed (the package files, the lockfile, `tsconfig.base.json`, `docker/postgres/**` and `.env.test`). Use `pnpm test --force` to run them anyway. `DOCKER_*` and `TESTCONTAINERS_*` variables are passed through to the tests, so a non-default Docker socket (`DOCKER_HOST`) works.
+
+The same checks run in CI (`.github/workflows/ci.yml`) on every pull request and every push to `main`. After the tests, CI starts the compose Postgres (`pnpm db:up`) and runs `pnpm db:migrate`, `pnpm db:migration:check` (fails when an entity changed without a migration) and `pnpm db:seed` against it. A pull request can be merged only when CI is green.
+
+## Testing
+
+Integration tests run against a real Postgres that [Testcontainers](https://node.testcontainers.org/) starts for every `pnpm test` run. The only requirement is a running Docker daemon.
+
+How the harness in `apps/api/test/support/` works:
+
+1. **Once per run** (`global-setup.ts`, Vitest `globalSetup`): builds `docker/postgres/Dockerfile`, the same image Docker Compose uses, as `libro-app-postgres:test` (BuildKit, so it is a cache hit after the first build), starts it with the data directory in `tmpfs`, creates the database `libro_template` and runs all migrations on it.
+2. **Once per test file** (`database-per-file.setup.ts`, Vitest `setupFiles`): clones `libro_template` into a new database `test_<random>`, points `DATABASE_URL` at it before the file is imported, and drops it after the file. Test files never share a database, so they run in parallel.
+3. **Once per test** (`integration-test.ts`): truncates every table in every non-system schema (with `RESTART IDENTITY CASCADE`), except the migration bookkeeping (`public.migrations`, `public.typeorm_metadata`) and tables owned by extensions (PostGIS `spatial_ref_sys`). Rows inserted by a data migration are truncated too, so a test that needs them inserts them itself.
+
+Writing an integration test: import `test` from `./support/integration-test.js` instead of `vitest` and take what you need from its fixtures.
+
+| Fixture      | What it is                                                                          |
+| ------------ | ----------------------------------------------------------------------------------- |
+| `app`        | The full Nest app (`AppModule` + `configureApp`), booted once per file              |
+| `http`       | A supertest client bound to `app`                                                   |
+| `dataSource` | The TypeORM `DataSource` of `app`, for arranging data and asserting on the database |
+
+```ts
+import { describe, expect } from 'vitest';
+import { test } from './support/integration-test.js';
+
+describe('GET /health', () => {
+  test('reports the api as healthy', async ({ http }) => {
+    const response = await http.get('/health');
+
+    expect(response.status).toBe(200);
+  });
+});
+```
+
+`test.beforeAll(async ({ dataSource }) => ...)` can use the file fixtures, for example to create a test-only table. Rows inserted there are gone before the first test, because every test starts from empty tables: arrange data inside the test.
+
+Tests that need no app (for example `config.test.ts`) use plain `vitest`; they still get their own database, which costs a few milliseconds. `migrations.test.ts` reverts and re-applies every migration through the CLI data source on its own per-file database, so it cannot affect other files.
+
+Factories (`typeorm-extension`, `factories/*.factory.ts`) are not wired into the harness yet because there is no entity to build. The first module (LIB-18) adds them on top of the `dataSource` fixture.
+
+A first run on a machine without the image downloads `postgis/postgis` and builds the image; later runs reuse the cached layers.
