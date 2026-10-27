@@ -18,7 +18,7 @@ Monorepo for "read more", a calm, book-only social app for readers, starting fro
 
 - Node.js `^24.11` or `>=26`
 - pnpm `10.34.5` (see `packageManager` in `package.json`)
-- Docker with Compose v2.24+ (`docker compose watch`, `env_file` with `required`)
+- Docker with Compose v2.32+ (`docker compose watch` with the `restart` action, `env_file` with `required`)
 
 ## Setup
 
@@ -35,11 +35,14 @@ Every variable is documented in `.env.example`. The defaults are safe local-only
 pnpm dev
 ```
 
-Builds the images on the first run, starts Postgres and the api, and keeps watching:
+Builds the images, starts Postgres and the api, and keeps watching:
 
-- changes in `apps/api/src` are synced into the container and Nest recompiles in watch mode (no image rebuild, no container restart)
-- changes in `tsconfig*.json` / `nest-cli.json` are synced and the container restarts
+- `apps/api/src`, `tsconfig*.json` and `nest-cli.json` are bind-mounted read-only into the container, so it always runs the current host source, also after the container is recreated
+- changes in `apps/api/src` are picked up by Nest in watch mode (no image rebuild, no container restart)
+- changes in `tsconfig*.json` / `nest-cli.json` restart the container
 - changes in `package.json` / `pnpm-lock.yaml` rebuild the api image
+
+`node_modules` are never mounted from the host. The container uses the ones installed in the image.
 
 Endpoints (all bound to `127.0.0.1` only):
 
@@ -51,13 +54,15 @@ Endpoints (all bound to `127.0.0.1` only):
 
 Other scripts:
 
-| Script             | What it does                                                                       |
-| ------------------ | ---------------------------------------------------------------------------------- |
-| `pnpm dev:restart` | Recreates the containers so they pick up a changed `.env` (no image rebuild)       |
-| `pnpm db:up`       | Starts only Postgres and waits until it is healthy                                 |
-| `pnpm db:down`     | Stops and removes this project's containers and network, keeps the data volume     |
-| `pnpm db:reset`    | Same as `db:down` plus removes the `libro-app-pgdata` volume, then starts Postgres |
-| `pnpm dev:host`    | Runs the api on the host in watch mode (expects Postgres from `pnpm db:up`)        |
+| Script             | What it does                                                                                                      |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev:restart` | Recreates the containers so they pick up a changed `.env` (no image rebuild). See the note below for `POSTGRES_*` |
+| `pnpm db:up`       | Starts only Postgres and waits until it is healthy                                                                |
+| `pnpm db:down`     | Stops and removes this project's containers and network, keeps the data volume                                    |
+| `pnpm db:reset`    | Same as `db:down` plus removes the `libro-app-pgdata` volume, then starts Postgres                                |
+| `pnpm dev:host`    | Runs the api on the host in watch mode (expects Postgres from `pnpm db:up`)                                       |
+
+`POSTGRES_USER`, `POSTGRES_PASSWORD` and `POSTGRES_DB` are used only when Postgres initializes an empty data directory. Changing them after the `libro-app-pgdata` volume was initialized is not applied by `pnpm dev:restart`: the database keeps the old user, password and database, while the api gets a `DATABASE_URL` built from the new values and cannot connect. Either reset the volume with `pnpm db:reset` (deletes all local data) or change the user / password inside the existing database (for example `ALTER USER ... PASSWORD ...` via `psql`).
 
 ## Isolation from other Docker projects
 
@@ -81,12 +86,12 @@ Config validation error: PORT: must be a number
 DATABASE_URL: must be a postgres:// or postgresql:// connection URL
 ```
 
-Files loaded by the api (real environment variables always win):
+Files loaded by the api (real environment variables always win). The file set is chosen from `NODE_ENV` of the process environment (exported in the shell or set by the test runner) before any file is read, so `NODE_ENV=test` written inside `.env` does not make the api load `.env.test`. Run it as `NODE_ENV=test pnpm ...` instead.
 
-| `NODE_ENV`    | Files, highest priority first |
-| ------------- | ----------------------------- |
-| `test`        | `.env.test`                   |
-| anything else | `.env.local`, `.env`          |
+| `NODE_ENV` (process environment) | Files, highest priority first |
+| -------------------------------- | ----------------------------- |
+| `test`                           | `.env.test`                   |
+| anything else                    | `.env.local`, `.env`          |
 
 All `.env*` files live in the repository root, are gitignored (except `.env.example`) and are never copied into an image. Containers get them at runtime through `env_file:`, so changing `.env` only needs `pnpm dev:restart`, never a rebuild.
 

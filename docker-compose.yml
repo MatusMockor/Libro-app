@@ -32,6 +32,12 @@ services:
         required: true
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    volumes:
+      - ./apps/api/src:/app/apps/api/src:ro
+      - ./tsconfig.base.json:/app/tsconfig.base.json:ro
+      - ./apps/api/tsconfig.json:/app/apps/api/tsconfig.json:ro
+      - ./apps/api/tsconfig.build.json:/app/apps/api/tsconfig.build.json:ro
+      - ./apps/api/nest-cli.json:/app/apps/api/nest-cli.json:ro
     ports:
       - '127.0.0.1:${API_PORT:-3000}:${PORT:-3000}'
       - '127.0.0.1:${API_DEBUG_PORT:-9229}:9229'
@@ -50,21 +56,14 @@ services:
       start_period: 10s
     develop:
       watch:
-        - action: sync
-          path: ./apps/api/src
-          target: /app/apps/api/src
-        - action: sync+restart
+        - action: restart
           path: ./tsconfig.base.json
-          target: /app/tsconfig.base.json
-        - action: sync+restart
+        - action: restart
           path: ./apps/api/tsconfig.json
-          target: /app/apps/api/tsconfig.json
-        - action: sync+restart
+        - action: restart
           path: ./apps/api/tsconfig.build.json
-          target: /app/apps/api/tsconfig.build.json
-        - action: sync+restart
+        - action: restart
           path: ./apps/api/nest-cli.json
-          target: /app/apps/api/nest-cli.json
         - action: rebuild
           path: ./package.json
         - action: rebuild
