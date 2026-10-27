@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en-US
+reviews:
+  profile: assertive
+  request_changes_workflow: true
+  high_level_summary: true
+  auto_review:
+    enabled: true
+    drafts: false
+  path_filters:
+    - '!pnpm-lock.yaml'
+  path_instructions:
+    - path: 'apps/api/src/**/*.ts'
+      instructions: >-
+        Enforce CLAUDE.md strictly. SOLID: single responsibility, small focused classes,
+        depend on abstractions (interfaces / injection tokens), not concrete classes from
+        other modules. Flag design patterns that are forced or missing where they clearly fit
+        (Strategy, Repository, Factory, Adapter, Command, Observer, Pipeline). Guard clauses
+        only, no else / else if. No code comments except bare tooling annotations.
+    - path: 'apps/api/src/modules/**'
+      instructions: >-
+        Modular monolith rules. Database access only through repositories (TypeORM repository
+        mode, @InjectRepository); flag DataSource, EntityManager, createQueryBuilder or raw SQL
+        outside repository classes. A module must not import another module's entities,
+        repositories or internal files - only its public service interface. No cross-module
+        joins. Cross-module communication goes through domain events. Each module owns its own
+        Postgres schema.
+    - path: '**/migrations/**'
+      instructions: >-
+        Every migration has both up() and down(), and down() fully reverts up(). Data
+        migrations live in up(). Flag any use of synchronize outside local config. Check
+        foreign keys, unique constraints and ON DELETE rules needed for GDPR deletion.
+    - path: '**/test/**'
+      instructions: >-
+        Integration tests through real collaborators against real PostgreSQL (Testcontainers).
+        Flag mocks of internal repositories, services or helpers; only external boundaries
+        (Stripe, object storage, third-party HTTP) may be stubbed. No throw in test code, use
+        assertions. No real network calls to third parties.
+    - path: 'packages/tree-engine/**'
+      instructions: >-
+        The tree engine is a pure, deterministic function: no I/O, no Date.now, no unseeded
+        randomness. Every algorithm change must be a new versioned engine (treeEngineVersion);
+        old versions must stay available and unchanged.
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - 'CLAUDE.md'
