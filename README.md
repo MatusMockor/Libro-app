@@ -109,3 +109,5 @@ pnpm format:check
 ```
 
 `lint`, `typecheck` and `test` run through Turborepo in every workspace package.
+
+The same checks run in CI (`.github/workflows/ci.yml`) on every pull request and every push to `main`. A pull request can be merged only when CI is green.
