@@ -77,12 +77,14 @@ Later (design so they plug in via events and interfaces):
 Own JWT, no auth framework.
 
 - **Access token:** JWT signed with `@nestjs/jwt` (HS256, secret from env), lifetime 15 minutes, claims only `sub` (user id) and standard ones - no email or other personal data. Sent as `Authorization: Bearer <token>`.
-- **Refresh token:** opaque random value (32 bytes), stored only as a SHA-256 hash in the `auth` schema, lifetime 30 days. Every refresh rotates it (old one revoked, new one issued in the same family). Reusing a revoked refresh token revokes the whole family. Logout revokes the current token.
+- **Refresh token:** opaque random value (32 bytes), stored only as a SHA-256 hash in the `auth` schema. A token family (one sign-in) expires 30 days after sign-in, an absolute limit: rotation carries the family expiry forward and never extends it.
+- **Rotation:** every refresh revokes the presented token and issues a new one in the same family, atomically - one conditional update consumes the token only while it is active, and a replacement is issued only when exactly one row was consumed. Presenting an already revoked token revokes the whole family. Logout revokes the current token.
 - **Passwords:** argon2id (`@node-rs/argon2`). Never logged, never returned.
 - **Protected by default:** a global auth guard; open endpoints opt out with `@Public()` (`/health`, register, login, refresh). The current user comes from a `@CurrentUser()` decorator, never from the request body.
 - **Rate limit:** `@nestjs/throttler` on register, login and refresh. Login errors do not reveal whether the email exists.
 - **Events:** the auth module publishes `UserRegistered`; other modules (e.g. `profiles`) react to it and never read auth tables.
-- **Google / Apple later:** the app signs in with the provider, the backend verifies the provider ID token (Google JWKS / Apple JWKS) and issues its own tokens. The app keeps tokens in `expo-secure-store`.
+- **Google / Apple (after email login, LIB-22 / LIB-24):** the app signs in with the provider and sends its ID token. The backend verifies the signature against the provider JWKS and the claims - issuer, audience (our client ID), expiry, `nonce` where the flow uses one, and rejects invalid `iat` / `nbf` - before trusting `sub`, then issues its own tokens.
+- **On the device:** the app keeps tokens in `expo-secure-store`.
 
 ## Database rules
 
