@@ -66,6 +66,18 @@ describe('OpenAPI', () => {
     expect(books?.post?.responses['201']?.content?.['application/json']?.schema).toEqual({
       $ref: '#/components/schemas/Book',
     });
+    expect(books?.get?.parameters?.filter((parameter) => parameter.in === 'query')).toEqual([
+      expect.objectContaining({ name: 'q', in: 'query', required: true }),
+      expect.objectContaining({ name: 'limit', in: 'query', required: false }),
+      expect.objectContaining({ name: 'offset', in: 'query', required: false }),
+    ]);
+    expect(books?.get?.responses['200']?.content?.['application/json']?.schema).toEqual({
+      $ref: '#/components/schemas/BookSearch',
+    });
+    expect(Object.keys(document.components.schemas.BookSearch?.properties ?? {})).toEqual([
+      'items',
+      'nextOffset',
+    ]);
     expect(book?.get?.parameters?.filter((parameter) => parameter.in === 'path')).toEqual([
       expect.objectContaining({ name: 'workId', in: 'path', required: true }),
     ]);
@@ -208,12 +220,13 @@ describe('OpenAPI', () => {
       [
         operation('/v1/me', 'get'),
         operation('/v1/books', 'post'),
+        operation('/v1/books', 'get'),
         operation('/v1/books/{workId}', 'get'),
         operation('/v1/reading-sessions', 'post'),
         operation('/v1/readings/{readingId}/finish', 'post'),
         operation('/v1/probe/protected', 'get'),
       ].map((protectedOperation) => protectedOperation?.security),
-    ).toEqual([undefined, undefined, undefined, undefined, undefined, undefined]);
+    ).toEqual([undefined, undefined, undefined, undefined, undefined, undefined, undefined]);
     expect(
       [
         operation('/health', 'get'),
