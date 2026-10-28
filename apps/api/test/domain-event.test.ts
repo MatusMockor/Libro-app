@@ -40,6 +40,49 @@ describe('defineDomainEvent', () => {
     expect(event.occurredAt).toStrictEqual(new Date('2026-10-28T09:15:00.000Z'));
   });
 
+  test('returns a fresh occurredAt on every read, so changing it does not change the event', () => {
+    const event = BookFinished.create({ bookId: 'book-1' }, new Date('2026-10-28T09:15:00.000Z'));
+
+    event.occurredAt.setUTCFullYear(2000);
+
+    expect(event.occurredAt).toStrictEqual(new Date('2026-10-28T09:15:00.000Z'));
+  });
+
+  test.for([
+    { name: 'a Date', payload: { at: new Date() } },
+    { name: 'a Map', payload: { shelves: new Map([['read', 1]]) } },
+    { name: 'a Set', payload: { bookIds: new Set(['book-1']) } },
+    { name: 'a typed array', payload: { bytes: new Uint8Array([1, 2]) } },
+  ])('rejects a payload with $name', ({ payload }) => {
+    const Anything = defineDomainEvent<object>('AnythingHappened', 1);
+
+    expect(() => Anything.create(payload)).toThrow(
+      'Domain event payloads may contain only plain objects, arrays and primitives.',
+    );
+  });
+
+  test('rejects a cyclic payload', () => {
+    const Anything = defineDomainEvent<object>('AnythingHappened', 1);
+    const payload: Record<string, unknown> = { bookId: 'book-1' };
+    payload.self = payload;
+
+    expect(() => Anything.create(payload)).toThrow(
+      'Domain event payloads must not contain cycles.',
+    );
+  });
+
+  test('accepts the same plain object referenced twice', () => {
+    const Anything = defineDomainEvent<object>('AnythingHappened', 1);
+    const book = { bookId: 'book-1' };
+
+    const event = Anything.create({ first: book, last: book });
+
+    expect(event.payload).toStrictEqual({
+      first: { bookId: 'book-1' },
+      last: { bookId: 'book-1' },
+    });
+  });
+
   test('stamps occurredAt with the current time by default', () => {
     const before = Date.now();
 

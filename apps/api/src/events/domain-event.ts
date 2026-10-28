@@ -36,13 +36,18 @@ export function defineDomainEvent<TPayload extends object>(
   return Object.freeze({
     name,
     version,
-    create: (payload: TPayload, occurredAt = new Date()): DomainEvent<TPayload> =>
-      Object.freeze({
+    create: (payload: TPayload, occurredAt = new Date()): DomainEvent<TPayload> => {
+      const occurredAtTime = occurredAt.getTime();
+
+      return Object.freeze({
         name,
         version,
-        occurredAt: new Date(occurredAt.getTime()),
+        get occurredAt(): Date {
+          return new Date(occurredAtTime);
+        },
         payload: deepFreeze(structuredClone(payload)),
-      }),
+      });
+    },
   });
 }
 
