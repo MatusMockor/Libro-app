@@ -148,6 +148,52 @@ describe('OpenAPI', () => {
     expect(document.paths['/v1/auth/logout']?.post?.responses).toHaveProperty('204');
   });
 
+  test('describes the reading-sessions endpoints with their zod schemas', async ({ http }) => {
+    const document = (await http.get('/docs-json')).body as OpenApiDocument;
+    const okSchema = (path: string, method: string, status: string) =>
+      document.paths[path]?.[method]?.responses[status]?.content?.['application/json']?.schema;
+    const requestSchema = (path: string) =>
+      document.paths[path]?.post?.requestBody?.content['application/json']?.schema;
+    const session = { $ref: '#/components/schemas/ReadingSession' };
+
+    expect(requestSchema('/v1/reading-sessions')).toEqual({
+      $ref: '#/components/schemas/StartReadingSession',
+    });
+    expect(okSchema('/v1/reading-sessions', 'post', '201')).toEqual(session);
+    expect(okSchema('/v1/reading-sessions/current', 'get', '200')).toEqual(session);
+    for (const path of ['', '/pause', '/resume', '/end']) {
+      const method = path === '' ? 'get' : 'post';
+      expect(okSchema(`/v1/reading-sessions/{sessionId}${path}`, method, '200')).toEqual(session);
+    }
+    expect(requestSchema('/v1/reading-sessions/{sessionId}/checkpoints')).toEqual({
+      $ref: '#/components/schemas/AddCheckpoint',
+    });
+    expect(okSchema('/v1/reading-sessions/{sessionId}/checkpoints', 'post', '201')).toEqual({
+      $ref: '#/components/schemas/Checkpoint',
+    });
+    expect(requestSchema('/v1/reading-sessions/{sessionId}/marked-parts')).toEqual({
+      $ref: '#/components/schemas/MarkPart',
+    });
+    expect(okSchema('/v1/reading-sessions/{sessionId}/marked-parts', 'post', '201')).toEqual({
+      $ref: '#/components/schemas/MarkedPart',
+    });
+    expect(okSchema('/v1/readings/{readingId}/finish', 'post', '200')).toEqual({
+      $ref: '#/components/schemas/Reading',
+    });
+    expect(Object.keys(document.components.schemas.ReadingSession?.properties ?? {})).toEqual([
+      'id',
+      'readingId',
+      'workId',
+      'place',
+      'status',
+      'startedAt',
+      'endedAt',
+      'activeSeconds',
+      'checkpoints',
+      'markedParts',
+    ]);
+  });
+
   test('requires the bearer token by default and lets public operations opt out', async ({
     http,
   }) => {
@@ -163,9 +209,11 @@ describe('OpenAPI', () => {
         operation('/v1/me', 'get'),
         operation('/v1/books', 'post'),
         operation('/v1/books/{workId}', 'get'),
+        operation('/v1/reading-sessions', 'post'),
+        operation('/v1/readings/{readingId}/finish', 'post'),
         operation('/v1/probe/protected', 'get'),
       ].map((protectedOperation) => protectedOperation?.security),
-    ).toEqual([undefined, undefined, undefined, undefined]);
+    ).toEqual([undefined, undefined, undefined, undefined, undefined, undefined]);
     expect(
       [
         operation('/health', 'get'),

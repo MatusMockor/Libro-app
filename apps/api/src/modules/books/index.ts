@@ -1,3 +1,4 @@
+export { BookNotFoundException } from './application/book-not-found.exception.js';
 export { BOOK_CATALOGUE, type BookCatalogue } from './book-catalogue.js';
 export { BooksModule } from './books.module.js';
 export {
