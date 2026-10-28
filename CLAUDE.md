@@ -144,6 +144,16 @@ Module `reading-sessions`, Postgres schema `reading`.
 - **Events:** `SessionEnded` v1 (`{ sessionId, readingId, userId, workId }`) and `BookFinished` v1 (`{ readingId, userId, workId }`), published after commit.
 - **Follow-up:** anti-cheat flags for suspicious sessions (impossible pace, very short sessions, ...) belong to the tree module (LIB-29), computed from the stored data. Offline sessions with client timestamps are not supported. Reading data of a deleted account must be deleted when auth publishes an account deletion event (LIB-23).
 
+## Book search
+
+Module `books`, `GET /v1/books?q=&limit=&offset=` (authenticated).
+
+- **Normalising:** `books.search_normalise(text)` (`lower(unaccent(...))`, declared `IMMUTABLE` because `unaccent()` itself is only `STABLE` and cannot be indexed) normalises both the stored text and the query, always in SQL, so "stastie" finds "šťastie" and "kafka" finds "Kafka".
+- **Matching:** the normalised query is split on whitespace into at most 5 distinct tokens; a work matches when every token is a substring (`LIKE`, wildcards `%`, `_`, `\` escaped) of its title, an edition title or an author name. A query that is an ISBN-13 or a valid ISBN-10 (hyphens and spaces ignored) also matches the edition with that `isbn13`.
+- **Ranking:** best `word_similarity` of the whole query against the title, edition titles and author names first, then title, then id, so pages are stable.
+- **Indexes:** GIN trigram expression indexes (`gin_trgm_ops`) on `books.search_normalise(...)` of `works.title`, `editions.title` and `authors.name` (`*_search_idx`), created in a migration. TypeORM does not load expression indexes, so they stay out of entity metadata and `db:migration:check`.
+- **Input and answer:** `q` trimmed, 2 to 100 characters; `limit` 1 to 50 (default 20); `offset` 0 to 1000 (default 0). Answers `200` `{ items: [{ id, title, authors: [{ id, name }] }], nextOffset }`; `nextOffset` is `null` on the last page or when it would pass the offset limit.
+
 ## Database rules
 
 - PostgreSQL only. Schema per module: entities declare `schema: '<module>'`, the module's first migration creates the schema (`queryRunner.createSchema('<module>', true)`) and its `down()` drops it (`queryRunner.dropSchema('<module>')`).
