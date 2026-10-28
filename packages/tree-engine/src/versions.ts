@@ -36,7 +36,7 @@ export function computeTree<Version extends TreeEngineVersion = LatestTreeEngine
   input: TreeInput<Version>,
   version?: Version,
 ): Tree<Version> {
-  const requested: unknown = version ?? LATEST_TREE_ENGINE_VERSION;
+  const requested: unknown = version === undefined ? LATEST_TREE_ENGINE_VERSION : version;
 
   if (!isTreeEngineVersion(requested)) {
     throw new UnknownTreeEngineVersionError(requested);

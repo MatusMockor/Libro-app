@@ -39,4 +39,11 @@ describe('tree engine versions', () => {
     expect(() => computeTree(LIKED_IT, UNKNOWN_VERSION)).toThrow(UnknownTreeEngineVersionError);
     expect(() => computeTree(LIKED_IT, UNKNOWN_VERSION)).toThrow('Unknown tree engine version: 2');
   });
+
+  it('rejects a null version instead of falling back to the latest one', () => {
+    const missing = null as unknown as TreeEngineVersion;
+
+    expect(() => computeTree(LIKED_IT, missing)).toThrow(UnknownTreeEngineVersionError);
+    expect(() => computeTree(LIKED_IT, missing)).toThrow('Unknown tree engine version: null');
+  });
 });
