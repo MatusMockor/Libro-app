@@ -9,7 +9,9 @@ const MAX_PREFIX: Readonly<Record<number, number>> = { 4: 32, 6: 128 };
 
 export function parseTrustProxy(value: string): TrustProxy | undefined {
   if (HOP_COUNT.test(value)) {
-    return Number(value);
+    const hops = Number(value);
+
+    return Number.isSafeInteger(hops) ? hops : undefined;
   }
 
   const proxies = value.split(',').map((proxy) => proxy.trim());

@@ -189,6 +189,8 @@ describe('config validation', () => {
     '10.0.0.256',
     'loopback,',
     'loopback, proxy.example.test',
+    '9'.repeat(400),
+    '9007199254740993',
   ])('refuses TRUST_PROXY %j', (value) => {
     const result = envSchema.safeParse({ ...REQUIRED_ENV, TRUST_PROXY: value });
 

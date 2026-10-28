@@ -3,6 +3,7 @@ import { describe, expect, vi } from 'vitest';
 
 vi.stubEnv('AUTH_RATE_LIMIT_MAX', '2');
 vi.stubEnv('AUTH_RATE_LIMIT_WINDOW_SECONDS', '60');
+vi.stubEnv('TRUST_PROXY', '');
 
 const { integrationTest } = await import('../../support/integration-test.js');
 const { ResettableThrottlerStorage } =
