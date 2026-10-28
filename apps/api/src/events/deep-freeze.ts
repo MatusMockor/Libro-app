@@ -1,12 +1,20 @@
 import type { DeepReadonly } from './deep-readonly.js';
 
+export function assertPlainData(value: unknown): void {
+  visitPlainData(value, new WeakSet(), () => undefined);
+}
+
 export function deepFreeze<T>(value: T): DeepReadonly<T> {
-  freezePlainData(value, new WeakSet());
+  visitPlainData(value, new WeakSet(), (node) => Object.freeze(node));
 
   return value as DeepReadonly<T>;
 }
 
-function freezePlainData(value: unknown, ancestors: WeakSet<object>): void {
+function visitPlainData(
+  value: unknown,
+  ancestors: WeakSet<object>,
+  visit: (node: object) => void,
+): void {
   if (typeof value !== 'object' || value === null) {
     return;
   }
@@ -23,10 +31,10 @@ function freezePlainData(value: unknown, ancestors: WeakSet<object>): void {
 
   ancestors.add(value);
   Object.values(value).forEach((child) => {
-    freezePlainData(child, ancestors);
+    visitPlainData(child, ancestors, visit);
   });
   ancestors.delete(value);
-  Object.freeze(value);
+  visit(value);
 }
 
 function isPlainData(value: object): boolean {

@@ -61,6 +61,19 @@ describe('defineDomainEvent', () => {
     );
   });
 
+  test('rejects a class instance before copying it, without freezing the input', () => {
+    class Shelf {
+      constructor(readonly bookIds: string[]) {}
+    }
+    const Anything = defineDomainEvent<object>('AnythingHappened', 1);
+    const shelf = new Shelf(['book-1']);
+
+    expect(() => Anything.create({ shelf })).toThrow(
+      'Domain event payloads may contain only plain objects, arrays and primitives.',
+    );
+    expect(Object.isFrozen(shelf.bookIds)).toBe(false);
+  });
+
   test('rejects a cyclic payload', () => {
     const Anything = defineDomainEvent<object>('AnythingHappened', 1);
     const payload: Record<string, unknown> = { bookId: 'book-1' };
