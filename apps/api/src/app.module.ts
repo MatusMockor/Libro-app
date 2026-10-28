@@ -10,6 +10,7 @@ import { AuthenticationModule } from './http/authentication/authentication.modul
 import { HttpApiModule } from './http/http-api.module.js';
 import { AuthModule } from './modules/auth/index.js';
 import { BooksModule } from './modules/books/index.js';
+import { ReadingSessionsModule } from './modules/reading-sessions/index.js';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { BooksModule } from './modules/books/index.js';
     HealthModule,
     AuthModule,
     BooksModule,
+    ReadingSessionsModule,
   ],
 })
 export class AppModule {}

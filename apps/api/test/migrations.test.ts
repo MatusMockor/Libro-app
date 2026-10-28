@@ -11,8 +11,12 @@ const MODULE_TABLES = [
   'books.editions',
   'books.work_authors',
   'books.works',
+  'reading.checkpoints',
+  'reading.marked_parts',
+  'reading.readings',
+  'reading.sessions',
 ];
-const MODULE_SCHEMAS = ['auth', 'books'];
+const MODULE_SCHEMAS = ['auth', 'books', 'reading'];
 
 async function installedExtensions(dataSource: DataSource): Promise<string[]> {
   const rows: { extname: string }[] = await dataSource.query(
