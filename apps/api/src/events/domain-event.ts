@@ -1,4 +1,4 @@
-import { assertPlainData, deepFreeze } from './deep-freeze.js';
+import { plainDataSnapshot } from './plain-data-snapshot.js';
 import type { DeepReadonly } from './deep-readonly.js';
 
 const EVENT_NAME = /^[A-Z][A-Za-z0-9]*$/;
@@ -37,7 +37,6 @@ export function defineDomainEvent<TPayload extends object>(
     name,
     version,
     create: (payload: TPayload, occurredAt = new Date()): DomainEvent<TPayload> => {
-      assertPlainData(payload);
       const occurredAtTime = occurredAt.getTime();
 
       return Object.freeze({
@@ -46,7 +45,7 @@ export function defineDomainEvent<TPayload extends object>(
         get occurredAt(): Date {
           return new Date(occurredAtTime);
         },
-        payload: deepFreeze(structuredClone(payload)),
+        payload: plainDataSnapshot(payload),
       });
     },
   });

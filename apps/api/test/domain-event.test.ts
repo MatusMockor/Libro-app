@@ -79,10 +79,10 @@ describe('defineDomainEvent', () => {
     const hidden = Object.defineProperty({}, 'bookId', { value: 'book-1', enumerable: false });
 
     expect(() => Anything.create(hidden)).toThrow(
-      'Domain event payloads must not contain non-enumerable or symbol fields.',
+      'Domain event payloads must contain only enumerable data fields (no getters or hidden fields).',
     );
     expect(() => Anything.create({ [Symbol('bookId')]: 'book-1' })).toThrow(
-      'Domain event payloads must not contain non-enumerable or symbol fields.',
+      'Domain event payloads must not contain symbol fields.',
     );
   });
 
@@ -96,6 +96,30 @@ describe('defineDomainEvent', () => {
     const event = Anything.create(node);
 
     expect(Object.isFrozen(event.payload)).toBe(true);
+  });
+
+  test('rejects a getter instead of reading it', () => {
+    const Anything = defineDomainEvent<object>('AnythingHappened', 1);
+    let reads = 0;
+    const payload = {
+      get bookId(): string {
+        reads += 1;
+        return 'book-1';
+      },
+    };
+
+    expect(() => Anything.create(payload)).toThrow(
+      'Domain event payloads must contain only enumerable data fields (no getters or hidden fields).',
+    );
+    expect(reads).toBe(0);
+  });
+
+  test('rejects a function in the payload', () => {
+    const Anything = defineDomainEvent<object>('AnythingHappened', 1);
+
+    expect(() => Anything.create({ onFinish: () => undefined })).toThrow(
+      'Domain event payloads may contain only plain objects, arrays and primitives.',
+    );
   });
 
   test('rejects a cyclic payload', () => {

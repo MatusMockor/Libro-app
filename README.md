@@ -272,7 +272,7 @@ export class ShelfHandler {
 }
 ```
 
-- An event is a deeply frozen `{ name, version, occurredAt, payload }`; `create(payload, occurredAt?)` copies both (`structuredClone` for the payload) and stamps `occurredAt` with the current time unless given.
+- An event is a deeply frozen `{ name, version, occurredAt, payload }`; `create(payload, occurredAt?)` copies both (the payload in one pass that accepts only plain objects, arrays and primitives with enumerable data fields, and freezes the copy) and stamps `occurredAt` with the current time unless given.
 - Handlers subscribe to `<name>.v<version>` (`BookFinished.v1`), so a `BookFinished` v2 never reaches a v1 handler.
 - `publish` resolves after every handler finished. A handler that throws or rejects is logged under the `DomainEvents` context (`Handler ShelfHandler.onBookFinished failed for BookFinished v1: ...` plus the stack); the publisher and the other handlers are not affected.
 - Handlers live in singleton (default scope) providers. A request or transient scoped provider with an `@OnDomainEvent` method, also one that is request scoped through a dependency, stops the app at startup.
