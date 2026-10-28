@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { JwtService } from '@nestjs/jwt';
 import { verify } from '@node-rs/argon2';
 import type { DataSource } from 'typeorm';
@@ -49,7 +50,15 @@ describe('POST /v1/auth/register', () => {
       accessToken: expect.stringMatching(/^[\w-]+\.[\w-]+\.[\w-]+$/) as string,
       tokenType: 'Bearer',
       expiresIn: 900,
+      refreshToken: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/) as string,
+      refreshTokenExpiresIn: expect.any(Number) as number,
     });
+    expect((response.body as AuthSessionResponse).refreshTokenExpiresIn).toBeGreaterThan(
+      30 * 24 * 60 * 60 - 60,
+    );
+    expect((response.body as AuthSessionResponse).refreshTokenExpiresIn).toBeLessThanOrEqual(
+      30 * 24 * 60 * 60,
+    );
   });
 
   test('stores the normalised email and an argon2id hash instead of the password', async ({
@@ -68,6 +77,31 @@ describe('POST /v1/auth/register', () => {
     expect(stored?.passwordHash).toMatch(/^\$argon2id\$v=19\$m=19456,t=2,p=1\$/);
     expect(stored?.passwordHash).not.toContain(PASSWORD);
     expect(await verify(stored?.passwordHash ?? '', PASSWORD)).toBe(true);
+  });
+
+  test('starts a session that stores only the hash of the refresh token', async ({
+    http,
+    dataSource,
+  }) => {
+    const before = Date.now();
+    const session = (await http.post(ROUTE).send(READER)).body as AuthSessionResponse;
+
+    const rows = await dataSource.query<
+      { userId: string; expiresAt: Date; tokenHash: string; dump: string }[]
+    >(
+      `SELECT session.user_id AS "userId", session.expires_at AS "expiresAt",
+              token.token_hash AS "tokenHash", row_to_json(token)::text || row_to_json(session)::text AS dump
+       FROM auth.sessions session
+       JOIN auth.refresh_tokens token ON token.session_id = session.id`,
+    );
+    const [stored, ...others] = rows;
+
+    expect(others).toEqual([]);
+    expect(stored?.userId).toBe(session.user.id);
+    expect(stored?.tokenHash).toBe(createHash('sha256').update(session.refreshToken).digest('hex'));
+    expect(stored?.dump).not.toContain(session.refreshToken);
+    expect(stored?.expiresAt.getTime()).toBeGreaterThanOrEqual(before + 30 * 24 * 3600 * 1000);
+    expect(stored?.expiresAt.getTime()).toBeLessThanOrEqual(Date.now() + 30 * 24 * 3600 * 1000);
   });
 
   test('publishes UserRegistered once with only the user id', async ({ http, recorder }) => {

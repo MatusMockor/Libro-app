@@ -4,6 +4,8 @@ import cliDataSource from '../src/database/data-source.js';
 
 const EXTENSIONS = ['pg_trgm', 'postgis', 'unaccent', 'vector'];
 const MODULE_TABLES = [
+  'auth.refresh_tokens',
+  'auth.sessions',
   'auth.users',
   'books.authors',
   'books.editions',

@@ -21,6 +21,8 @@ const test = integrationTest({
 
 const REGISTER = '/v1/auth/register';
 const LOGIN = '/v1/auth/login';
+const REFRESH = '/v1/auth/refresh';
+const LOGOUT = '/v1/auth/logout';
 
 function tooManyRequests(instance: string) {
   return {
@@ -77,6 +79,21 @@ describe('auth rate limit', () => {
     expect(limited.headers['retry-after']).toMatch(/^\d+$/);
     expect(limited.body).toStrictEqual(tooManyRequests(LOGIN));
   });
+
+  test.for([REFRESH, LOGOUT])(
+    'answers 429 on %s once the limit is exceeded',
+    async (route, { http }) => {
+      const unknown = { refreshToken: 'C'.repeat(43) };
+
+      const attempts = [await http.post(route).send(unknown), await http.post(route).send(unknown)];
+      const limited = await http.post(route).send(unknown);
+
+      expect(attempts.map(({ status }) => status)).not.toContain(429);
+      expect(limited.status).toBe(429);
+      expect(limited.headers['retry-after']).toMatch(/^\d+$/);
+      expect(limited.body).toStrictEqual(tooManyRequests(route));
+    },
+  );
 
   test('limits register and login separately', async ({ http, signIn }) => {
     const user = await signIn();

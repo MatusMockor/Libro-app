@@ -301,15 +301,19 @@ ISBN-13s are 13 digits without hyphens and must have a valid check digit. A dupl
 
 ### Authentication
 
-Own JWT access tokens, no auth framework (see [CLAUDE.md](CLAUDE.md#auth) for the design). The `auth` module (schema `auth`, table `users`) owns accounts; refresh tokens and logout come with the next part of LIB-20.
+Own JWT access tokens, no auth framework (see [CLAUDE.md](CLAUDE.md#auth) for the design). The `auth` module (schema `auth`, table `users`) owns accounts (`users`) and sign-ins (`sessions`, `refresh_tokens`).
 
 | Route                    | Access | Answer                                                                                                                                |
 | ------------------------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------- |
 | `POST /v1/auth/register` | public | `{ email, password }`. `201` with a session, `409 email_already_registered`, `400 validation_failed`, `429 too_many_requests`         |
 | `POST /v1/auth/login`    | public | `{ email, password }`. `200` with a session, `401 invalid_credentials` (same answer for an unknown email and a wrong password), `429` |
+| `POST /v1/auth/refresh`  | public | `{ refreshToken }`. `200` with a new session of the same sign-in, `401 invalid_refresh_token`, `400 validation_failed`, `429`         |
+| `POST /v1/auth/logout`   | public | `{ refreshToken }`. `204`, also for an unknown or already revoked token, `400 validation_failed`, `429`                               |
 | `GET /v1/me`             | token  | `200` with `{ id, email }` of the signed-in user                                                                                      |
 
-A session is `{ "user": { "id": "...", "email": "..." }, "accessToken": "...", "tokenType": "Bearer", "expiresIn": 900 }`. Emails are compared case-insensitively and without surrounding spaces (stored trimmed and lower case). Passwords need 10 to 128 characters (Unicode code points after NFKC normalisation) and no other rules; they are hashed with argon2id and never logged or returned. After a registration is stored, the module publishes `UserRegistered` v1 (`{ userId }`).
+A session is `{ "user": { "id": "...", "email": "..." }, "accessToken": "...", "tokenType": "Bearer", "expiresIn": 900, "refreshToken": "...", "refreshTokenExpiresIn": 2592000 }`.
+
+**Refresh tokens.** Every register or login starts a sign-in (a token family in `auth.sessions`) that ends 30 days later, no matter how often it is refreshed. The refresh token is 32 random bytes (43 base64url characters); the api stores only its SHA-256 hash. Each refresh token works once: `POST /v1/auth/refresh` uses it up and answers new access and refresh tokens of the same sign-in, with `refreshTokenExpiresIn` counting down to the fixed end. Presenting a used refresh token again ends the whole sign-in (its newest token stops working too, other sign-ins of the user are not affected) and logs `Refresh token reuse detected, revoked session <id>`. Two refreshes racing with the same token count as reuse: one gets new tokens, then the sign-in ends and the app has to sign in again. An unknown, used, revoked or expired token always answers the same `401 invalid_refresh_token`; a value that is not 43 base64url characters is a `400 validation_failed`. `POST /v1/auth/logout` ends the sign-in of the presented token and answers `204` either way. Access tokens are not stored, so one issued before a logout stays valid until it expires (at most 15 minutes). Expired and revoked rows are not cleaned up yet. Emails are compared case-insensitively and without surrounding spaces (stored trimmed and lower case). Passwords need 10 to 128 characters (Unicode code points after NFKC normalisation) and no other rules; they are hashed with argon2id and never logged or returned. After a registration is stored, the module publishes `UserRegistered` v1 (`{ userId }`).
 
 **Protected by default.** A global guard (`apps/api/src/http/authentication/`) runs after the app version check on every route and needs `Authorization: Bearer <accessToken>`:
 
@@ -339,7 +343,7 @@ export class ShelfController {
 
 The access token is a JWT (HS256, signed with `JWT_ACCESS_SECRET`) valid for 15 minutes with only the claims `sub` (user id), `iss` (`libro-api`), `aud` (`libro-app`), `iat` and `exp`. A token without integer `iat` and `exp`, with `iat` in the future or with a lifetime over 15 minutes is rejected as well. The api refuses to start with a blank `JWT_ACCESS_SECRET`, and in production with one of the known non-secret values from `apps/api/src/config/non-secret-values.ts` (the `.env.example` and test values). The guard does not read the database; `GET /v1/me` answers `401 invalid_access_token` when the account of a valid token no longer exists.
 
-**Rate limit.** Register and login accept at most `AUTH_RATE_LIMIT_MAX` requests (default 10) per client IP and route within `AUTH_RATE_LIMIT_WINDOW_SECONDS` (default 60), invalid ones included. Above it they answer `429 too_many_requests` with `Retry-After` (seconds). The counters live in memory, per api process. The client IP is the address of the connection; behind a load balancer or reverse proxy set `TRUST_PROXY` so it comes from `X-Forwarded-For` instead, either as the exact number of proxies (`TRUST_PROXY=1`) or as a list of trusted proxy addresses (`TRUST_PROXY=loopback, 10.0.0.0/8`, IPs, CIDR ranges and the named ranges `loopback`, `linklocal`, `uniquelocal`). It is applied in `configureApp` as Express `trust proxy`; unrestricted trust (`true`) is refused at startup, because then any client could pick its own IP by sending the header.
+**Rate limit.** Register, login, refresh and logout accept at most `AUTH_RATE_LIMIT_MAX` requests (default 10) per client IP and route within `AUTH_RATE_LIMIT_WINDOW_SECONDS` (default 60), invalid ones included. Above it they answer `429 too_many_requests` with `Retry-After` (seconds). The counters live in memory, per api process. The client IP is the address of the connection; behind a load balancer or reverse proxy set `TRUST_PROXY` so it comes from `X-Forwarded-For` instead, either as the exact number of proxies (`TRUST_PROXY=1`) or as a list of trusted proxy addresses (`TRUST_PROXY=loopback, 10.0.0.0/8`, IPs, CIDR ranges and the named ranges `loopback`, `linklocal`, `uniquelocal`). It is applied in `configureApp` as Express `trust proxy`; unrestricted trust (`true`) is refused at startup, because then any client could pick its own IP by sending the header.
 
 Calling protected endpoints locally (`pnpm dev`, api on `127.0.0.1:3000`):
 
@@ -353,6 +357,22 @@ TOKEN=$(curl -s -X POST http://127.0.0.1:3000/v1/auth/login \
   -d '{"email":"reader@example.test","password":"a quiet afternoon"}' | node -pe 'JSON.parse(require("fs").readFileSync(0)).accessToken')
 
 curl -s http://127.0.0.1:3000/v1/me -H "Authorization: Bearer $TOKEN"
+```
+
+Refreshing and signing out (`REFRESH` is the `refreshToken` of the latest session response; every refresh answers a new one):
+
+```sh
+REFRESH=$(curl -s -X POST http://127.0.0.1:3000/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"reader@example.test","password":"a quiet afternoon"}' | node -pe 'JSON.parse(require("fs").readFileSync(0)).refreshToken')
+
+REFRESH=$(curl -s -X POST http://127.0.0.1:3000/v1/auth/refresh \
+  -H 'Content-Type: application/json' \
+  -d "{\"refreshToken\":\"$REFRESH\"}" | node -pe 'JSON.parse(require("fs").readFileSync(0)).refreshToken')
+
+curl -s -o /dev/null -w '%{http_code}\n' -X POST http://127.0.0.1:3000/v1/auth/logout \
+  -H 'Content-Type: application/json' \
+  -d "{\"refreshToken\":\"$REFRESH\"}"
 ```
 
 ## Environment and configuration
@@ -406,13 +426,13 @@ How the harness in `apps/api/test/support/` works:
 
 Writing an integration test: import `test` from `./support/integration-test.js` instead of `vitest` and take what you need from its fixtures.
 
-| Fixture      | What it is                                                                                                   |
-| ------------ | ------------------------------------------------------------------------------------------------------------ |
-| `app`        | The full Nest app (`AppModule` + `configureApp`), booted once per file                                       |
-| `http`       | A supertest client bound to `app`                                                                            |
-| `dataSource` | The TypeORM `DataSource` of `app`, for arranging data and asserting on the database                          |
-| `factories`  | A `typeorm-extension` `SeederFactoryManager` on `dataSource` with every module factory, fresh for every test |
-| `signIn`     | `signIn(meta?)` stores a factory user and returns `{ id, email, authorization }` with a real access token    |
+| Fixture      | What it is                                                                                                            |
+| ------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `app`        | The full Nest app (`AppModule` + `configureApp`), booted once per file                                                |
+| `http`       | A supertest client bound to `app`                                                                                     |
+| `dataSource` | The TypeORM `DataSource` of `app`, for arranging data and asserting on the database                                   |
+| `factories`  | A `typeorm-extension` `SeederFactoryManager` on `dataSource` with every module factory, fresh for every test          |
+| `signIn`     | `signIn(meta?)` stores a factory user, starts a real session and returns `{ id, email, authorization, refreshToken }` |
 
 ```ts
 import { describe, expect } from 'vitest';
@@ -449,7 +469,7 @@ const work = await factories
   .save();
 ```
 
-Routes are protected by default, so a test calls them with a signed-in user. The token comes from the app's own issuer, so tests never build JWTs by hand (except deliberately forged ones in the guard tests). Factory users share one argon2 hash computed once per test process, and their password is `FACTORY_USER_PASSWORD` from `modules/auth/factories/user.factory.ts`:
+Routes are protected by default, so a test calls them with a signed-in user. The tokens come from the app's own `SessionService` (a real session row with a refresh token), so tests never build JWTs by hand (except deliberately forged ones in the guard tests). Factory users share one argon2 hash computed once per test process, and their password is `FACTORY_USER_PASSWORD` from `modules/auth/factories/user.factory.ts`:
 
 ```ts
 test('answers 200', async ({ http, signIn }) => {
