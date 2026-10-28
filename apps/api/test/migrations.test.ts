@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import cliDataSource from '../src/database/data-source.js';
 
 const EXTENSIONS = ['pg_trgm', 'postgis', 'unaccent', 'vector'];
+const BOOKS_TABLES = ['books.authors', 'books.editions', 'books.work_authors', 'books.works'];
 
 async function installedExtensions(dataSource: DataSource): Promise<string[]> {
   const rows: { extname: string }[] = await dataSource.query(
@@ -11,6 +12,26 @@ async function installedExtensions(dataSource: DataSource): Promise<string[]> {
   );
 
   return rows.map((row) => row.extname);
+}
+
+async function booksTables(dataSource: DataSource): Promise<string[]> {
+  const rows: { name: string }[] = await dataSource.query(
+    `SELECT table_schema || '.' || table_name AS name
+     FROM information_schema.tables
+     WHERE table_schema = 'books'
+     ORDER BY name`,
+  );
+
+  return rows.map((row) => row.name);
+}
+
+async function schemaExists(dataSource: DataSource, schema: string): Promise<boolean> {
+  const rows: unknown[] = await dataSource.query(
+    'SELECT 1 FROM information_schema.schemata WHERE schema_name = $1',
+    [schema],
+  );
+
+  return rows.length > 0;
 }
 
 async function revertAllMigrations(dataSource: DataSource): Promise<void> {
@@ -36,11 +57,18 @@ describe('database migrations', () => {
     expect(await installedExtensions(dataSource)).toEqual(EXTENSIONS);
   });
 
-  it('removes the extensions when every migration is reverted', async () => {
+  it('creates the books schema with its tables', async () => {
+    await dataSource.runMigrations();
+
+    expect(await booksTables(dataSource)).toEqual(BOOKS_TABLES);
+  });
+
+  it('removes the extensions and module schemas when every migration is reverted', async () => {
     await dataSource.runMigrations();
     await revertAllMigrations(dataSource);
 
     expect(await installedExtensions(dataSource)).toEqual([]);
+    expect(await schemaExists(dataSource, 'books')).toBe(false);
     expect(await dataSource.showMigrations()).toBe(true);
   });
 
@@ -49,6 +77,7 @@ describe('database migrations', () => {
     await dataSource.runMigrations();
 
     expect(await installedExtensions(dataSource)).toEqual(EXTENSIONS);
+    expect(await booksTables(dataSource)).toEqual(BOOKS_TABLES);
     expect(await dataSource.showMigrations()).toBe(false);
   });
 });

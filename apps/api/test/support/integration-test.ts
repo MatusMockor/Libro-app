@@ -6,6 +6,7 @@ import { DataSource } from 'typeorm';
 import { test as base } from 'vitest';
 import { AppModule } from '../../src/app.module.js';
 import { configureApp } from '../../src/app.setup.js';
+import { seederFactories } from './seeder-factories.js';
 import { truncateAllTables } from './truncate-tables.js';
 
 type Imports = NonNullable<ModuleMetadata['imports']>;
@@ -37,6 +38,7 @@ export function integrationTest({
     })
     .extend('http', { scope: 'file' }, ({ app }) => request(app.getHttpServer()))
     .extend('dataSource', { scope: 'file' }, ({ app }) => app.get(DataSource))
+    .extend('factories', ({ dataSource }) => seederFactories(dataSource))
     .extend('emptyDatabase', { auto: true }, async ({ dataSource }) => {
       await truncateAllTables(dataSource);
     });
