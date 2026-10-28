@@ -1,10 +1,12 @@
 import { Controller, Get, HttpStatus, Res, VERSION_NEUTRAL } from '@nestjs/common';
 import { ApiOkResponse, ApiServiceUnavailableResponse, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
+import { Public } from '../http/authentication/public.decorator.js';
 import { healthReportSchema, type HealthReport } from './health-report.schema.js';
 import { HealthService } from './health.service.js';
 
 @ApiTags('health')
+@Public()
 @Controller({ path: 'health', version: VERSION_NEUTRAL })
 export class HealthController {
   constructor(private readonly health: HealthService) {}

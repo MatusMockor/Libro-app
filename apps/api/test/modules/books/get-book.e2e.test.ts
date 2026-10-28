@@ -6,13 +6,17 @@ import { WorkEntity } from '../../../src/modules/books/persistence/work.entity.j
 import { test as base } from '../../support/integration-test.js';
 import { ANY_UUID } from '../../support/matchers.js';
 
-const test = base.extend('works', ({ factories }) =>
-  factories.get<WorkEntity, WorkFactoryMeta>(WorkEntity),
-);
+const test = base
+  .extend('works', ({ factories }) => factories.get<WorkEntity, WorkFactoryMeta>(WorkEntity))
+  .extend('getBook', ({ http, signIn }) => async (workId: string) => {
+    const { authorization } = await signIn();
+
+    return http.get(`/v1/books/${workId}`).set('Authorization', authorization);
+  });
 
 describe('GET /v1/books/:workId', () => {
   test('answers 200 with the work, its authors in credit order and editions by year', async ({
-    http,
+    getBook,
     works,
   }) => {
     const work = await works
@@ -26,7 +30,7 @@ describe('GET /v1/books/:workId', () => {
       })
       .save();
 
-    const response = await http.get(`/v1/books/${work.id}`);
+    const response = await getBook(work.id);
 
     expect(response.status).toBe(200);
     expect(response.body).toStrictEqual({
@@ -49,11 +53,11 @@ describe('GET /v1/books/:workId', () => {
     });
   });
 
-  test('answers 404 book_not_found for an unknown id', async ({ http, works }) => {
+  test('answers 404 book_not_found for an unknown id', async ({ getBook, works }) => {
     await works.save();
     const unknownId = randomUUID();
 
-    const response = await http.get(`/v1/books/${unknownId}`);
+    const response = await getBook(unknownId);
 
     expect(response.status).toBe(404);
     expect(response.headers['content-type']).toMatch(/^application\/problem\+json/);
@@ -67,8 +71,17 @@ describe('GET /v1/books/:workId', () => {
     });
   });
 
-  test('answers 400 for an id that is not a UUID', async ({ http }) => {
-    const response = await http.get('/v1/books/not-a-uuid');
+  test('answers 401 authentication_required without an access token', async ({ http, works }) => {
+    const work = await works.save();
+
+    const response = await http.get(`/v1/books/${work.id}`);
+
+    expect(response.status).toBe(401);
+    expect((response.body as ProblemDetails).code).toBe('authentication_required');
+  });
+
+  test('answers 400 for an id that is not a UUID', async ({ getBook }) => {
+    const response = await getBook('not-a-uuid');
     const problem = response.body as ProblemDetails;
 
     expect(response.status).toBe(400);

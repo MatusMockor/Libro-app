@@ -4,12 +4,19 @@ import { ProbeModule } from './support/probe/probe.module.js';
 
 const test = integrationTest({ imports: [ProbeModule] });
 
+type SecurityRequirement = Record<string, string[]>;
+
 interface OpenApiDocument {
   paths: Record<string, Record<string, OpenApiOperation>>;
-  components: { schemas: Record<string, { properties?: Record<string, unknown> }> };
+  security?: SecurityRequirement[];
+  components: {
+    schemas: Record<string, { properties?: Record<string, unknown> }>;
+    securitySchemes?: Record<string, unknown>;
+  };
 }
 
 interface OpenApiOperation {
+  security?: SecurityRequirement[];
   parameters?: { name: string; in: string; required?: boolean; schema?: unknown }[];
   requestBody?: { content: Record<string, { schema: unknown }> };
   responses: Record<string, { content?: Record<string, { schema: unknown }> }>;
@@ -106,5 +113,56 @@ describe('OpenAPI', () => {
     expect(document.paths['/v1/probe/books']?.post?.responses.default?.content).toEqual({
       'application/problem+json': { schema: { $ref: '#/components/schemas/ProblemDetails' } },
     });
+  });
+
+  test('describes the auth endpoints with their zod schemas', async ({ http }) => {
+    const document = (await http.get('/docs-json')).body as OpenApiDocument;
+    const register = document.paths['/v1/auth/register']?.post;
+    const login = document.paths['/v1/auth/login']?.post;
+    const me = document.paths['/v1/me']?.get;
+
+    expect(register?.requestBody?.content['application/json']?.schema).toEqual({
+      $ref: '#/components/schemas/Register',
+    });
+    expect(register?.responses['201']?.content?.['application/json']?.schema).toEqual({
+      $ref: '#/components/schemas/AuthSession',
+    });
+    expect(login?.requestBody?.content['application/json']?.schema).toEqual({
+      $ref: '#/components/schemas/Login',
+    });
+    expect(login?.responses['200']?.content?.['application/json']?.schema).toEqual({
+      $ref: '#/components/schemas/AuthSession',
+    });
+    expect(me?.responses['200']?.content?.['application/json']?.schema).toEqual({
+      $ref: '#/components/schemas/User',
+    });
+  });
+
+  test('requires the bearer token by default and lets public operations opt out', async ({
+    http,
+  }) => {
+    const document = (await http.get('/docs-json')).body as OpenApiDocument;
+    const operation = (path: string, method: string) => document.paths[path]?.[method];
+
+    expect(document.components.securitySchemes).toEqual({
+      bearer: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+    });
+    expect(document.security).toEqual([{ bearer: [] }]);
+    expect(
+      [
+        operation('/v1/me', 'get'),
+        operation('/v1/books', 'post'),
+        operation('/v1/books/{workId}', 'get'),
+        operation('/v1/probe/protected', 'get'),
+      ].map((protectedOperation) => protectedOperation?.security),
+    ).toEqual([undefined, undefined, undefined, undefined]);
+    expect(
+      [
+        operation('/health', 'get'),
+        operation('/v1/auth/register', 'post'),
+        operation('/v1/auth/login', 'post'),
+        operation('/v1/probe/books', 'get'),
+      ].map((publicOperation) => publicOperation?.security),
+    ).toEqual([[{}], [{}], [{}], [{}]]);
   });
 });

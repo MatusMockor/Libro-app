@@ -3,7 +3,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import cliDataSource from '../src/database/data-source.js';
 
 const EXTENSIONS = ['pg_trgm', 'postgis', 'unaccent', 'vector'];
-const BOOKS_TABLES = ['books.authors', 'books.editions', 'books.work_authors', 'books.works'];
+const MODULE_TABLES = [
+  'auth.users',
+  'books.authors',
+  'books.editions',
+  'books.work_authors',
+  'books.works',
+];
+const MODULE_SCHEMAS = ['auth', 'books'];
 
 async function installedExtensions(dataSource: DataSource): Promise<string[]> {
   const rows: { extname: string }[] = await dataSource.query(
@@ -14,12 +21,13 @@ async function installedExtensions(dataSource: DataSource): Promise<string[]> {
   return rows.map((row) => row.extname);
 }
 
-async function booksTables(dataSource: DataSource): Promise<string[]> {
+async function moduleTables(dataSource: DataSource): Promise<string[]> {
   const rows: { name: string }[] = await dataSource.query(
     `SELECT table_schema || '.' || table_name AS name
      FROM information_schema.tables
-     WHERE table_schema = 'books'
+     WHERE table_schema = ANY($1)
      ORDER BY name`,
+    [MODULE_SCHEMAS],
   );
 
   return rows.map((row) => row.name);
@@ -57,10 +65,10 @@ describe('database migrations', () => {
     expect(await installedExtensions(dataSource)).toEqual(EXTENSIONS);
   });
 
-  it('creates the books schema with its tables', async () => {
+  it('creates the module schemas with their tables', async () => {
     await dataSource.runMigrations();
 
-    expect(await booksTables(dataSource)).toEqual(BOOKS_TABLES);
+    expect(await moduleTables(dataSource)).toEqual(MODULE_TABLES);
   });
 
   it('removes the extensions and module schemas when every migration is reverted', async () => {
@@ -68,7 +76,9 @@ describe('database migrations', () => {
     await revertAllMigrations(dataSource);
 
     expect(await installedExtensions(dataSource)).toEqual([]);
-    expect(await schemaExists(dataSource, 'books')).toBe(false);
+    for (const schema of MODULE_SCHEMAS) {
+      expect(await schemaExists(dataSource, schema)).toBe(false);
+    }
     expect(await dataSource.showMigrations()).toBe(true);
   });
 
@@ -77,7 +87,7 @@ describe('database migrations', () => {
     await dataSource.runMigrations();
 
     expect(await installedExtensions(dataSource)).toEqual(EXTENSIONS);
-    expect(await booksTables(dataSource)).toEqual(BOOKS_TABLES);
+    expect(await moduleTables(dataSource)).toEqual(MODULE_TABLES);
     expect(await dataSource.showMigrations()).toBe(false);
   });
 });

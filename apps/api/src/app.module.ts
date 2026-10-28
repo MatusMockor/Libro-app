@@ -6,7 +6,9 @@ import { DatabaseModule } from './database/database.module.js';
 import { EventsModule } from './events/events.module.js';
 import { HealthModule } from './health/health.module.js';
 import { AppVersionModule } from './http/app-version/app-version.module.js';
+import { AuthenticationModule } from './http/authentication/authentication.module.js';
 import { HttpApiModule } from './http/http-api.module.js';
+import { AuthModule } from './modules/auth/index.js';
 import { BooksModule } from './modules/books/index.js';
 
 @Module({
@@ -16,7 +18,9 @@ import { BooksModule } from './modules/books/index.js';
     EventsModule,
     HttpApiModule,
     AppVersionModule,
+    AuthenticationModule.forRoot({ verifierFrom: [AuthModule] }),
     HealthModule,
+    AuthModule,
     BooksModule,
   ],
 })

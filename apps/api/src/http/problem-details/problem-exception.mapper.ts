@@ -21,5 +21,6 @@ function publicProblem(details: Problem): Problem {
     status: details.status,
     code: details.code,
     detail: statusPhrase(details.status),
+    ...(details.headers && { headers: details.headers }),
   });
 }

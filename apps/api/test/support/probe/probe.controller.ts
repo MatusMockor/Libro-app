@@ -9,6 +9,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { z } from 'zod';
+import { Public } from '../../../src/http/authentication/public.decorator.js';
 import { ProblemException } from '../../../src/http/problem-details/problem.exception.js';
 
 export const probeBookSchema = z
@@ -31,6 +32,7 @@ type ProbeBook = z.infer<typeof probeBookSchema>;
 type ProbeListQuery = z.infer<typeof probeListQuerySchema>;
 type ProbeBookParams = z.infer<typeof probeBookParamsSchema>;
 
+@Public()
 @Controller('probe')
 export class ProbeController {
   @Post('books')

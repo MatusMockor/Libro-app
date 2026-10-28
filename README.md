@@ -134,7 +134,7 @@ Seeders and factories use [`typeorm-extension`](https://github.com/tada5hi/typeo
 
 ## API
 
-The api code that is not a domain module lives in `apps/api/src/http/` (validation, error format, OpenAPI), `apps/api/src/health/` and `apps/api/src/events/` (domain events). They are wired in `AppModule` and `configureApp`, so tests and `main.ts` get exactly the same behaviour.
+The api code that is not a domain module lives in `apps/api/src/http/` (validation, error format, authentication guard, OpenAPI), `apps/api/src/health/` and `apps/api/src/events/` (domain events). They are wired in `AppModule` and `configureApp`, so tests and `main.ts` get exactly the same behaviour.
 
 ### Versioning
 
@@ -211,8 +211,11 @@ Codes:
 - A code derived from the status phrase for any Nest `HttpException`: `bad_request` (also malformed JSON), `not_found` (also unknown routes), `conflict`, `payload_too_large`, ...
 - An own code for domain errors: `throw new ProblemException({ status: 409, code: 'book_already_finished', detail: '...' })`.
 - `app_update_required` (426) and `invalid_app_client` (400) from the app version check (see below).
+- `authentication_required` and `invalid_access_token` (401) from the authentication guard, `invalid_credentials` (401), `email_already_registered` (409) and `too_many_requests` (429) from the auth module (see [Authentication](#authentication)).
 - `internal_server_error` (500) for anything that is not an `HttpException`.
 - Module codes, for example `isbn_already_exists` (409) and `book_not_found` (404) from the books catalogue (see below).
+
+A `ProblemException` can also carry response headers (`headers` in its init, e.g. `WWW-Authenticate`); the filter sends them with the problem body.
 
 5xx responses never expose internal messages or stack traces: an unexpected error answers `detail: "An unexpected error occurred."`, a 5xx `HttpException` answers its status phrase. The original error is logged server-side with Nest's `Logger`. Only `ProblemException` can send a deliberate 5xx `detail`.
 
@@ -233,7 +236,7 @@ Every request with app headers that reaches a Nest route logs one line under the
 
 ### OpenAPI
 
-The Swagger UI is served at `/docs` and the OpenAPI 3.0 document at `/docs-json` (and `/docs-yaml`). They are enabled whenever `NODE_ENV` is not `production`, so in local development and tests, and never in production. The document is built on the first request from the controllers and their zod schemas; it includes every route, the `ProblemDetails` schema as the `default` and `426` response of every operation, the optional `X-App-Version` / `X-Platform` headers on every operation, and `/health`.
+The Swagger UI is served at `/docs` and the OpenAPI 3.0 document at `/docs-json` (and `/docs-yaml`). They are enabled whenever `NODE_ENV` is not `production`, so in local development and tests, and never in production. The document is built on the first request from the controllers and their zod schemas; it includes every route, the `ProblemDetails` schema as the `default` and `426` response of every operation, the optional `X-App-Version` / `X-Platform` headers on every operation, and `/health`. It declares the `bearer` security scheme (HTTP bearer, JWT) as a document-wide requirement, so every operation needs the access token; `@Public()` operations override it with an empty requirement (`security: [{}]`, no token needed). In the Swagger UI, use "Authorize" with the `accessToken` from register or login.
 
 ### Health
 
@@ -294,7 +297,63 @@ The `books` module (schema `books`) stores works (`works`), their authors in cre
 | `POST /v1/books`        | Adds a work with its authors (ordered names, one new author row per name for now) and at least one edition. `201` with the book, `409 isbn_already_exists` for a duplicate ISBN-13 |
 | `GET /v1/books/:workId` | `200` with the work, its authors in credit order and its editions (by publication year), `404 book_not_found`                                                                      |
 
-ISBN-13s are 13 digits without hyphens and must have a valid check digit. A duplicate is detected by the unique constraint, so two concurrent requests with the same ISBN-13 answer `201` and `409`. The work, its authors and editions are written in one transaction; after it committed, the module publishes `BookAddedToCatalogue` v1 (`{ workId, editionIds }`). Other modules check a work through `BOOK_CATALOGUE` (`workExists(workId)`), exported from `modules/books/index.ts` with the event. Both routes are open until the global auth guard (LIB-20) protects them by default.
+ISBN-13s are 13 digits without hyphens and must have a valid check digit. A duplicate is detected by the unique constraint, so two concurrent requests with the same ISBN-13 answer `201` and `409`. The work, its authors and editions are written in one transaction; after it committed, the module publishes `BookAddedToCatalogue` v1 (`{ workId, editionIds }`). Other modules check a work through `BOOK_CATALOGUE` (`workExists(workId)`), exported from `modules/books/index.ts` with the event. Both routes need an access token (protected by default, see [Authentication](#authentication)).
+
+### Authentication
+
+Own JWT access tokens, no auth framework (see [CLAUDE.md](CLAUDE.md#auth) for the design). The `auth` module (schema `auth`, table `users`) owns accounts; refresh tokens and logout come with the next part of LIB-20.
+
+| Route                    | Access | Answer                                                                                                                                |
+| ------------------------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /v1/auth/register` | public | `{ email, password }`. `201` with a session, `409 email_already_registered`, `400 validation_failed`, `429 too_many_requests`         |
+| `POST /v1/auth/login`    | public | `{ email, password }`. `200` with a session, `401 invalid_credentials` (same answer for an unknown email and a wrong password), `429` |
+| `GET /v1/me`             | token  | `200` with `{ id, email }` of the signed-in user                                                                                      |
+
+A session is `{ "user": { "id": "...", "email": "..." }, "accessToken": "...", "tokenType": "Bearer", "expiresIn": 900 }`. Emails are compared case-insensitively and without surrounding spaces (stored trimmed and lower case). Passwords need 10 to 128 characters (Unicode code points after NFKC normalisation) and no other rules; they are hashed with argon2id and never logged or returned. After a registration is stored, the module publishes `UserRegistered` v1 (`{ userId }`).
+
+**Protected by default.** A global guard (`apps/api/src/http/authentication/`) runs after the app version check on every route and needs `Authorization: Bearer <accessToken>`:
+
+| Request                                                                 | Answer                                                                       |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Route marked `@Public()`                                                | passes, the `Authorization` header is ignored                                |
+| No `Authorization` header, another scheme or a malformed value          | `401 authentication_required`, `WWW-Authenticate: Bearer`                    |
+| Token with a wrong signature or algorithm, expired, other `iss` / `aud` | `401 invalid_access_token`, `WWW-Authenticate: Bearer error="invalid_token"` |
+| Valid token                                                             | passes, the handler gets the user through `@CurrentUser()`                   |
+
+```ts
+import { Controller, Get } from '@nestjs/common';
+import type { AuthenticatedUser } from '../../../http/authentication/authenticated-user.js';
+import { CurrentUser } from '../../../http/authentication/current-user.decorator.js';
+import { Public } from '../../../http/authentication/public.decorator.js';
+
+@Controller('shelf')
+export class ShelfController {
+  @Get()
+  mine(@CurrentUser() user: AuthenticatedUser) {}
+
+  @Get('featured')
+  @Public()
+  featured() {}
+}
+```
+
+The access token is a JWT (HS256, signed with `JWT_ACCESS_SECRET`) valid for 15 minutes with only the claims `sub` (user id), `iss` (`libro-api`), `aud` (`libro-app`), `iat` and `exp`. A token without integer `iat` and `exp`, with `iat` in the future or with a lifetime over 15 minutes is rejected as well. The api refuses to start with a blank `JWT_ACCESS_SECRET`, and in production with one of the known non-secret values from `apps/api/src/config/non-secret-values.ts` (the `.env.example` and test values). The guard does not read the database; `GET /v1/me` answers `401 invalid_access_token` when the account of a valid token no longer exists.
+
+**Rate limit.** Register and login accept at most `AUTH_RATE_LIMIT_MAX` requests (default 10) per client IP and route within `AUTH_RATE_LIMIT_WINDOW_SECONDS` (default 60), invalid ones included. Above it they answer `429 too_many_requests` with `Retry-After` (seconds). The counters live in memory, per api process. The client IP is the address of the connection; behind a load balancer or reverse proxy set `TRUST_PROXY` so it comes from `X-Forwarded-For` instead, either as the exact number of proxies (`TRUST_PROXY=1`) or as a list of trusted proxy addresses (`TRUST_PROXY=loopback, 10.0.0.0/8`, IPs, CIDR ranges and the named ranges `loopback`, `linklocal`, `uniquelocal`). It is applied in `configureApp` as Express `trust proxy`; unrestricted trust (`true`) is refused at startup, because then any client could pick its own IP by sending the header.
+
+Calling protected endpoints locally (`pnpm dev`, api on `127.0.0.1:3000`):
+
+```sh
+curl -s -X POST http://127.0.0.1:3000/v1/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"reader@example.test","password":"a quiet afternoon"}'
+
+TOKEN=$(curl -s -X POST http://127.0.0.1:3000/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"reader@example.test","password":"a quiet afternoon"}' | node -pe 'JSON.parse(require("fs").readFileSync(0)).accessToken')
+
+curl -s http://127.0.0.1:3000/v1/me -H "Authorization: Bearer $TOKEN"
+```
 
 ## Environment and configuration
 
@@ -353,6 +412,7 @@ Writing an integration test: import `test` from `./support/integration-test.js` 
 | `http`       | A supertest client bound to `app`                                                                            |
 | `dataSource` | The TypeORM `DataSource` of `app`, for arranging data and asserting on the database                          |
 | `factories`  | A `typeorm-extension` `SeederFactoryManager` on `dataSource` with every module factory, fresh for every test |
+| `signIn`     | `signIn(meta?)` stores a factory user and returns `{ id, email, authorization }` with a real access token    |
 
 ```ts
 import { describe, expect } from 'vitest';
@@ -388,6 +448,20 @@ const work = await factories
   .setMeta({ title: 'Good Omens', authors: ['Terry Pratchett', 'Neil Gaiman'] })
   .save();
 ```
+
+Routes are protected by default, so a test calls them with a signed-in user. The token comes from the app's own issuer, so tests never build JWTs by hand (except deliberately forged ones in the guard tests). Factory users share one argon2 hash computed once per test process, and their password is `FACTORY_USER_PASSWORD` from `modules/auth/factories/user.factory.ts`:
+
+```ts
+test('answers 200', async ({ http, signIn }) => {
+  const { authorization } = await signIn();
+
+  const response = await http.get('/v1/me').set('Authorization', authorization);
+
+  expect(response.status).toBe(200);
+});
+```
+
+Test probe controllers in `test/support/` are `@Public()`, except `ProbeProtectedController` (`GET /v1/probe/protected`, answers the `@CurrentUser()`). `apps/api/vitest.config.ts` sets a test-only `JWT_ACCESS_SECRET` and raises `AUTH_RATE_LIMIT_MAX` to 1000, so no test file hits the rate limit by accident; `test/modules/auth/rate-limit.e2e.test.ts` lowers it with `vi.stubEnv` before importing the harness and resets the counters before every test.
 
 Module tests live in `apps/api/test/modules/<module>/`. `apps/api/test/lint/` lints virtual files with the real ESLint config to prove the module boundary and database access rules.
 
