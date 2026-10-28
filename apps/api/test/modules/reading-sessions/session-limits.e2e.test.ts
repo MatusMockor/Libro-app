@@ -4,6 +4,7 @@ import {
   MAX_CHECKPOINTS_PER_SESSION,
   MAX_MARKED_PARTS_PER_SESSION,
 } from '../../../src/modules/reading-sessions/domain/reading-session.js';
+import type { ReadingSessionFactoryMeta } from '../../../src/modules/reading-sessions/factories/reading-session.factory.js';
 import { lockSession, requestsWaitingForSessionLock } from '../../support/session-lock.js';
 import { SESSIONS_ROUTE, test } from './reading-sessions.fixture.js';
 
@@ -15,8 +16,10 @@ interface Limited {
   readonly body: object;
   readonly table: string;
   readonly limit: number;
-  readonly arrange: string;
+  readonly filledUpTo: (count: number) => ReadingSessionFactoryMeta;
 }
+
+const pages = (count: number): number[] => Array.from({ length: count }, (_, index) => index + 1);
 
 const LIMITED: readonly Limited[] = [
   {
@@ -25,8 +28,7 @@ const LIMITED: readonly Limited[] = [
     body: { page: 5 },
     table: 'checkpoints',
     limit: MAX_CHECKPOINTS_PER_SESSION,
-    arrange: `INSERT INTO reading.checkpoints (session_id, page)
-              SELECT $1, page FROM generate_series(1, $2) AS page`,
+    filledUpTo: (count) => ({ checkpointPages: pages(count) }),
   },
   {
     name: 'marked parts',
@@ -34,8 +36,9 @@ const LIMITED: readonly Limited[] = [
     body: { kind: 'good', fromPage: 1, toPage: 5 },
     table: 'marked_parts',
     limit: MAX_MARKED_PARTS_PER_SESSION,
-    arrange: `INSERT INTO reading.marked_parts (session_id, kind, from_page, to_page)
-              SELECT $1, 'slow', page, page FROM generate_series(1, $2) AS page`,
+    filledUpTo: (count) => ({
+      markedParts: pages(count).map((page) => ({ kind: 'slow', fromPage: page, toPage: page })),
+    }),
   },
 ];
 
@@ -48,15 +51,14 @@ async function storedFor(dataSource: DataSource, table: string): Promise<number 
 }
 
 describe.for(LIMITED)('the limit of $limit $name per reading session', (limited) => {
-  const { path, body, table, limit, arrange } = limited;
+  const { path, body, table, limit, filledUpTo } = limited;
 
   test('accepts the last one and answers 409 reading_session_limit_reached after it', async ({
     reader,
     dataSource,
   }) => {
-    const session = await reader.startedSession();
+    const session = await reader.arrangeSession(filledUpTo(limit - 1));
     const route = `${SESSIONS_ROUTE}/${session.id}/${path}`;
-    await dataSource.query(arrange, [session.id, limit - 1]);
 
     const last = await reader.post(route, body);
     const over = await reader.post(route, body);
@@ -78,9 +80,8 @@ describe.for(LIMITED)('the limit of $limit $name per reading session', (limited)
     reader,
     dataSource,
   }) => {
-    const session = await reader.startedSession();
+    const session = await reader.arrangeSession(filledUpTo(limit - 1));
     const route = `${SESSIONS_ROUTE}/${session.id}/${path}`;
-    await dataSource.query(arrange, [session.id, limit - 1]);
     const lock = await lockSession(dataSource, session.id, { table: 'reading.sessions' });
 
     const racing = [reader.post(route, body).then(), reader.post(route, body).then()];
