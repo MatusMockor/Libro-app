@@ -4,15 +4,15 @@ Monorepo for "read more", a calm, book-only social app for readers, starting fro
 
 ## Layout
 
-| Path                 | What                                                      |
-| -------------------- | --------------------------------------------------------- |
-| `apps/api`           | Backend - NestJS modular monolith                         |
-| `packages/`          | Shared packages (tree engine, API contracts) - none yet   |
-| `docker/postgres`    | Postgres image (PostGIS + pgvector) for dev, CI and tests |
-| `docker-compose.yml` | Local dev environment (Postgres + api with hot reload)    |
-| `turbo.json`         | Task pipeline for `lint`, `typecheck`, `test`, `dev`      |
-| `tsconfig.base.json` | Shared strict TypeScript config                           |
-| `eslint.config.js`   | Shared ESLint flat config                                 |
+| Path                   | What                                                      |
+| ---------------------- | --------------------------------------------------------- |
+| `apps/api`             | Backend - NestJS modular monolith                         |
+| `packages/tree-engine` | Deterministic tree engine shared by the API and the app   |
+| `docker/postgres`      | Postgres image (PostGIS + pgvector) for dev, CI and tests |
+| `docker-compose.yml`   | Local dev environment (Postgres + api with hot reload)    |
+| `turbo.json`           | Task pipeline for `lint`, `typecheck`, `test`, `dev`      |
+| `tsconfig.base.json`   | Shared strict TypeScript config                           |
+| `eslint.config.js`     | Shared ESLint flat config                                 |
 
 ## Prerequisites
 

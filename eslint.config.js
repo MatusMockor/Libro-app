@@ -92,6 +92,79 @@ const DATABASE_ACCESS_SYNTAX = [
   .map((selector) => ({ selector, message: DATABASE_ACCESS_MESSAGE }))
   .concat({ selector: "CallExpression[callee.name='require']", message: REQUIRE_MESSAGE });
 
+const DETERMINISM_MESSAGE =
+  'The tree engine must give identical output in every JS engine: use integer math and the seeded PRNG (see Tree engine in CLAUDE.md).';
+
+const NON_DETERMINISTIC_MATH = [
+  'random',
+  'sin',
+  'cos',
+  'tan',
+  'asin',
+  'acos',
+  'atan',
+  'atan2',
+  'sinh',
+  'cosh',
+  'tanh',
+  'asinh',
+  'acosh',
+  'atanh',
+  'exp',
+  'expm1',
+  'log',
+  'log1p',
+  'log2',
+  'log10',
+  'pow',
+  'sqrt',
+  'cbrt',
+  'hypot',
+];
+
+const NON_DETERMINISTIC_PROPERTIES = [
+  ...NON_DETERMINISTIC_MATH.map((property) => ({
+    object: 'Math',
+    property,
+    message: DETERMINISM_MESSAGE,
+  })),
+  ...['localeCompare', 'toLocaleString', 'toLocaleLowerCase', 'toLocaleUpperCase'].map(
+    (property) => ({ property, message: DETERMINISM_MESSAGE }),
+  ),
+];
+
+const PORTABILITY_MESSAGE =
+  'The tree engine runs in Node and Hermes / React Native: no runtime dependencies, Node APIs or I/O (see Tree engine in CLAUDE.md).';
+
+const NON_DETERMINISTIC_GLOBALS = [
+  ...['Date', 'Intl', 'performance', 'crypto'].map((name) => ({
+    name,
+    message: DETERMINISM_MESSAGE,
+  })),
+  ...[
+    'process',
+    'Buffer',
+    'global',
+    'require',
+    'module',
+    '__dirname',
+    '__filename',
+    'setTimeout',
+    'setInterval',
+    'setImmediate',
+    'fetch',
+  ].map((name) => ({ name, message: PORTABILITY_MESSAGE })),
+];
+
+const RELATIVE_IMPORTS_ONLY = {
+  patterns: [{ regex: '^(?!\\.)', message: PORTABILITY_MESSAGE }],
+};
+
+const NON_DETERMINISTIC_SYNTAX = [
+  "BinaryExpression[operator='**']",
+  "AssignmentExpression[operator='**=']",
+].map((selector) => ({ selector, message: DETERMINISM_MESSAGE }));
+
 export default defineConfig(
   {
     ignores: ['**/dist/**', '**/coverage/**', '**/.turbo/**', '**/node_modules/**'],
@@ -162,6 +235,18 @@ export default defineConfig(
         },
       ],
       'no-restricted-syntax': ['error', NO_ELSE, ...DATABASE_ACCESS_SYNTAX],
+    },
+  },
+  {
+    files: ['packages/tree-engine/src/**/*.ts'],
+    languageOptions: {
+      globals: globals.es2023,
+    },
+    rules: {
+      'no-restricted-properties': ['error', ...NON_DETERMINISTIC_PROPERTIES],
+      'no-restricted-globals': ['error', ...NON_DETERMINISTIC_GLOBALS],
+      'no-restricted-imports': ['error', RELATIVE_IMPORTS_ONLY],
+      'no-restricted-syntax': ['error', NO_ELSE, ...NON_DETERMINISTIC_SYNTAX],
     },
   },
   {
