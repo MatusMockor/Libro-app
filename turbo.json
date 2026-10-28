@@ -1,11 +1,18 @@
 {
   "$schema": "https://turborepo.com/schema.json",
   "tasks": {
+    "transit": {
+      "dependsOn": ["^transit"]
+    },
     "lint": {
+      "dependsOn": ["transit"],
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/eslint.config.js"]
     },
-    "typecheck": {},
+    "typecheck": {
+      "dependsOn": ["transit"]
+    },
     "test": {
+      "dependsOn": ["transit"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/tsconfig.base.json",

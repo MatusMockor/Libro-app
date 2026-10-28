@@ -81,18 +81,16 @@ describe('reading session requests racing on the same session', () => {
     'a $name racing an end lands before the end or is rejected',
     async ({ path, body, table, column }, { reader, dataSource }) => {
       const session = await reader.startedSession();
-      const lock = await lockSession(dataSource, session.id, {
-        table: 'reading.sessions',
-        mode: 'SHARE',
-      });
+      const lock = await lockSession(dataSource, session.id, { table: 'reading.sessions' });
 
       const ending = reader.post(`${SESSIONS_ROUTE}/${session.id}/end`).then();
-      const waiting = await requestsWaitingForSessionLock(dataSource, 1, READING_SESSIONS_QUERY);
-      const racing = await reader.post(`${SESSIONS_ROUTE}/${session.id}/${path}`, body);
+      const endWaiting = await requestsWaitingForSessionLock(dataSource, 1, READING_SESSIONS_QUERY);
+      const progress = reader.post(`${SESSIONS_ROUTE}/${session.id}/${path}`, body).then();
+      const waiting = await requestsWaitingForSessionLock(dataSource, 2, READING_SESSIONS_QUERY);
       await lock.commit();
-      const ended = await ending;
+      const [ended, racing] = await Promise.all([ending, progress]);
 
-      expect(waiting).toBe(1);
+      expect([endWaiting, waiting]).toEqual([1, 2]);
       expect(ended.status).toBe(200);
       expect([201, 409]).toContain(racing.status);
       expect(await recordedAroundEnd(dataSource, table, column)).toEqual({

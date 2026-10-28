@@ -12,11 +12,13 @@ WORKDIR /app
 
 COPY --chown=node:node package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY --chown=node:node apps/api/package.json apps/api/
+COPY --chown=node:node packages/tree-engine/package.json packages/tree-engine/
 
 RUN pnpm install --frozen-lockfile --filter @libro/api
 
 COPY --chown=node:node tsconfig.base.json ./
 COPY --chown=node:node apps/api apps/api
+COPY --chown=node:node packages/tree-engine/src packages/tree-engine/src
 
 WORKDIR /app/apps/api
 

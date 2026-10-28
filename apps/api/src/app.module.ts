@@ -11,6 +11,7 @@ import { HttpApiModule } from './http/http-api.module.js';
 import { AuthModule } from './modules/auth/index.js';
 import { BooksModule } from './modules/books/index.js';
 import { ReadingSessionsModule } from './modules/reading-sessions/index.js';
+import { TreeModule } from './modules/tree/index.js';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { ReadingSessionsModule } from './modules/reading-sessions/index.js';
     AuthModule,
     BooksModule,
     ReadingSessionsModule,
+    TreeModule,
   ],
 })
 export class AppModule {}
