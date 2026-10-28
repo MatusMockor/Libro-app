@@ -136,6 +136,16 @@ describe('OpenAPI', () => {
     expect(me?.responses['200']?.content?.['application/json']?.schema).toEqual({
       $ref: '#/components/schemas/User',
     });
+    for (const path of ['/v1/auth/refresh', '/v1/auth/logout']) {
+      expect(document.paths[path]?.post?.requestBody?.content['application/json']?.schema).toEqual({
+        $ref: '#/components/schemas/RefreshTokenRequest',
+      });
+    }
+    expect(
+      document.paths['/v1/auth/refresh']?.post?.responses['200']?.content?.['application/json']
+        ?.schema,
+    ).toEqual({ $ref: '#/components/schemas/AuthSession' });
+    expect(document.paths['/v1/auth/logout']?.post?.responses).toHaveProperty('204');
   });
 
   test('requires the bearer token by default and lets public operations opt out', async ({
@@ -161,8 +171,10 @@ describe('OpenAPI', () => {
         operation('/health', 'get'),
         operation('/v1/auth/register', 'post'),
         operation('/v1/auth/login', 'post'),
+        operation('/v1/auth/refresh', 'post'),
+        operation('/v1/auth/logout', 'post'),
         operation('/v1/probe/books', 'get'),
       ].map((publicOperation) => publicOperation?.security),
-    ).toEqual([[{}], [{}], [{}], [{}]]);
+    ).toEqual([[{}], [{}], [{}], [{}], [{}], [{}]]);
   });
 });

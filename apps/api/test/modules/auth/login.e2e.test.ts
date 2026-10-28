@@ -31,7 +31,15 @@ describe('POST /v1/auth/login', () => {
       accessToken: expect.stringMatching(/^[\w-]+\.[\w-]+\.[\w-]+$/) as string,
       tokenType: 'Bearer',
       expiresIn: 900,
+      refreshToken: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/) as string,
+      refreshTokenExpiresIn: expect.any(Number) as number,
     });
+    expect((response.body as AuthSessionResponse).refreshTokenExpiresIn).toBeGreaterThan(
+      30 * 24 * 60 * 60 - 60,
+    );
+    expect((response.body as AuthSessionResponse).refreshTokenExpiresIn).toBeLessThanOrEqual(
+      30 * 24 * 60 * 60,
+    );
   });
 
   test('issues an access token that signs the user in', async ({ http, signIn }) => {
