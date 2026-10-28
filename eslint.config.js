@@ -53,7 +53,14 @@ const DATABASE_ACCESS_PACKAGES = [
   },
   {
     name: '@nestjs/typeorm',
-    importNames: ['InjectRepository', 'InjectDataSource', 'InjectEntityManager'],
+    importNames: [
+      'InjectRepository',
+      'InjectDataSource',
+      'InjectEntityManager',
+      'getRepositoryToken',
+      'getDataSourceToken',
+      'getEntityManagerToken',
+    ],
   },
 ];
 
@@ -142,9 +149,9 @@ export default defineConfig(
   {
     files: ['apps/api/src/modules/**/*.ts'],
     ignores: [
-      'apps/api/src/modules/**/*.repository.ts',
-      'apps/api/src/modules/**/seeds/**',
-      'apps/api/src/modules/**/factories/**',
+      'apps/api/src/modules/*/persistence/*.repository.ts',
+      'apps/api/src/modules/*/seeds/*.ts',
+      'apps/api/src/modules/*/factories/*.ts',
     ],
     rules: {
       'no-restricted-imports': [

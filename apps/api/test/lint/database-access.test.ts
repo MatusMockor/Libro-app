@@ -47,6 +47,24 @@ describe('database access lint rule', () => {
       rule: 'no-restricted-imports',
     },
     {
+      case: 'a getRepositoryToken import in a service',
+      path: SERVICE,
+      code: "import { getRepositoryToken } from '@nestjs/typeorm';\nexport const token = getRepositoryToken;\n",
+      rule: 'no-restricted-imports',
+    },
+    {
+      case: 'a repository file outside persistence/',
+      path: 'apps/api/src/modules/books/application/shelf.repository.ts',
+      code: "import { DataSource } from 'typeorm';\nexport type Database = DataSource;\n",
+      rule: 'no-restricted-imports',
+    },
+    {
+      case: 'a nested seeds/ folder outside the module root',
+      path: 'apps/api/src/modules/books/application/seeds/shelf.seeder.ts',
+      code: "import { DataSource } from 'typeorm';\nexport type Database = DataSource;\n",
+      rule: 'no-restricted-imports',
+    },
+    {
       case: 'createQueryBuilder in a service',
       path: SERVICE,
       code: "export function load(works: { createQueryBuilder(alias: string): unknown }): unknown {\n  return works.createQueryBuilder('work');\n}\n",

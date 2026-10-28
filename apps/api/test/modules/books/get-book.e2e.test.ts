@@ -67,7 +67,7 @@ describe('GET /v1/books/:workId', () => {
     });
   });
 
-  test('answers 400 for an id that is not a ANY_UUID', async ({ http }) => {
+  test('answers 400 for an id that is not a UUID', async ({ http }) => {
     const response = await http.get('/v1/books/not-a-uuid');
     const problem = response.body as ProblemDetails;
 
