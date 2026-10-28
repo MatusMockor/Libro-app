@@ -76,6 +76,30 @@ In process, immediately, no outbox.
 - **Handlers:** `@OnDomainEvent(BookFinished)` on a provider method. A failing handler is logged (event, version, handler, stack) and neither fails the publisher nor stops other handlers. Handlers must stay fast; slow work goes to a queue later. Handlers live in singleton providers; the app refuses to start otherwise.
 - **Transport:** only `src/events` touches `@nestjs/event-emitter`; everyone else injects `EVENT_BUS` (ESLint enforces it).
 
+### Module conventions
+
+Modules live in `apps/api/src/modules/<module>/`. The reference module is `books`; copy its layout:
+
+```
+index.ts             public entry: module class, public interface (token + interface), event definitions
+<module>.module.ts
+book-catalogue.ts    public interface other modules inject (BOOK_CATALOGUE + BookCatalogue)
+events/              domain event definitions
+domain/              plain types and rules, no framework code
+application/         services, repository interfaces + tokens, ProblemExceptions
+http/                controllers, zod request / response schemas
+persistence/         entities, *.repository.ts, entity mappers
+factories/ seeds/    typeorm-extension factories and seeders
+```
+
+- **Public entry only:** other modules and code outside `modules/` (e.g. `app.module.ts`) import a module only from its `index.ts`. It never exports entities, repositories or internal services. Platform code (`src/events`, `src/http`, `src/database`, `src/shared`, `src/config`) is free to import.
+- **Database access only in repositories:** services depend on a repository interface + token (`WORK_REPOSITORY`). Only `persistence/*.repository.ts` (plus the module's own `seeds/`, `factories/`) may use `@InjectRepository` / `getRepositoryToken`, `DataSource`, `EntityManager`, `QueryRunner`, `Repository`, query builders, `.query()`, `.transaction()` or `.manager` (also through subpath, dynamic or computed access; `require()` is banned in modules). A multi-table write is one transaction inside the repository; the service publishes events after it returned.
+- **Schema:** entities declare `schema: '<module>'` and name their constraints (`_pkey`, `_fkey`, `_key`, `_check`, `_idx`). Unique violations become a `ProblemException` in the repository (`isUniqueViolation` from `src/database`), so concurrent duplicates answer 409, not 500.
+- **HTTP:** controllers map domain types to a response DTO, never return entities. Domain errors are `ProblemException` subclasses with an own `code` in `application/`.
+- **Seeds and factories:** one deterministic factory per aggregate (`setSeederFactory`, overrides via `setMeta`), registered in `apps/api/test/support/seeder-factories.ts` for the per-test `factories` fixture. Seeders are idempotent.
+- **Tests** live in `apps/api/test/modules/<module>/`: behaviour through HTTP, arranged data through factories.
+- **ESLint enforces** the public entry rule (`eslint-plugin-boundaries`) and repository-only database access (`no-restricted-imports` / `no-restricted-syntax`); `apps/api/test/lint/` proves both.
+
 ## The tree rule
 
 - **Never store a picture of the tree.** Store what the reader did (sessions, marked parts, insights from friends, congratulations) and compute the tree from that data every time.

@@ -7,6 +7,7 @@ import { EventsModule } from './events/events.module.js';
 import { HealthModule } from './health/health.module.js';
 import { AppVersionModule } from './http/app-version/app-version.module.js';
 import { HttpApiModule } from './http/http-api.module.js';
+import { BooksModule } from './modules/books/index.js';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { HttpApiModule } from './http/http-api.module.js';
     HttpApiModule,
     AppVersionModule,
     HealthModule,
+    BooksModule,
   ],
 })
 export class AppModule {}

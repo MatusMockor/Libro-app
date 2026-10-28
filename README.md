@@ -89,10 +89,10 @@ Discovery, all relative to `apps/api/src` (the api registers entities through `f
 
 | What       | Pattern                     | Example                                                 |
 | ---------- | --------------------------- | ------------------------------------------------------- |
-| Entities   | `**/*.entity.ts`            | `modules/books/book.entity.ts`                          |
+| Entities   | `**/*.entity.ts`            | `modules/books/persistence/work.entity.ts`              |
 | Migrations | `**/migrations/*.ts`        | `database/migrations/1793115072337-EnableExtensions.ts` |
 | Seeders    | `**/seeds/*.seeder.ts`      | `modules/books/seeds/books.seeder.ts`                   |
-| Factories  | `**/factories/*.factory.ts` | `modules/books/factories/book.factory.ts`               |
+| Factories  | `**/factories/*.factory.ts` | `modules/books/factories/work.factory.ts`               |
 
 A new module under `apps/api/src/modules/<module>/` is picked up without touching any central config.
 
@@ -120,7 +120,7 @@ Where things live:
 
 Each module owns its own Postgres schema, named after the module:
 
-1. Every entity of the module declares it: `@Entity({ schema: 'books', name: 'books' })`.
+1. Every entity of the module declares it: `@Entity({ schema: 'books', name: 'works' })`.
 2. The module's first migration creates the schema before its tables: `await queryRunner.createSchema('books', true);`. TypeORM does not generate this line, add it by hand after `db:migration:generate`.
 3. Its `down()` drops the schema after dropping the tables: `await queryRunner.dropSchema('books');`.
 
@@ -128,7 +128,9 @@ Foreign keys, unique constraints and `ON DELETE` rules stay inside a module sche
 
 ### Seeders and factories
 
-Seeders and factories use [`typeorm-extension`](https://github.com/tada5hi/typeorm-extension). A seeder is a default-exported class implementing `Seeder` in a `seeds/*.seeder.ts` file; a factory is a default-exported `setSeederFactory(...)` in a `factories/*.factory.ts` file. There are no seeders yet, so `pnpm db:seed` currently runs nothing and succeeds.
+Seeders and factories use [`typeorm-extension`](https://github.com/tada5hi/typeorm-extension). A seeder is a default-exported class implementing `Seeder` in a `seeds/*.seeder.ts` file; a factory is a default-exported `setSeederFactory(...)` in a `factories/*.factory.ts` file. Seeders are idempotent, so running `pnpm db:seed` again changes nothing.
+
+`pnpm db:seed` fills the `books` catalogue with a handful of works: Slovak classics (Hviezdoslav, Timrava, Urban, Figuli) and translated books with an English or French original and a Slovak edition (Le Petit Prince, Nineteen Eighty-Four, Good Omens with two authors). Their ISBN-13s are synthetic test data from the `979-0` range (ISMN, printed music), which never belongs to a real book; a book is skipped when one of its ISBN-13s is already stored.
 
 ## API
 
@@ -210,6 +212,7 @@ Codes:
 - An own code for domain errors: `throw new ProblemException({ status: 409, code: 'book_already_finished', detail: '...' })`.
 - `app_update_required` (426) and `invalid_app_client` (400) from the app version check (see below).
 - `internal_server_error` (500) for anything that is not an `HttpException`.
+- Module codes, for example `isbn_already_exists` (409) and `book_not_found` (404) from the books catalogue (see below).
 
 5xx responses never expose internal messages or stack traces: an unexpected error answers `detail: "An unexpected error occurred."`, a 5xx `HttpException` answers its status phrase. The original error is logged server-side with Nest's `Logger`. Only `ProblemException` can send a deliberate 5xx `detail`.
 
@@ -278,6 +281,21 @@ export class ShelfHandler {
 - Handlers live in singleton (default scope) providers. A request or transient scoped provider with an `@OnDomainEvent` method, also one that is request scoped through a dependency, stops the app at startup.
 - Delivery is in process and immediate, without an outbox: publish only after the transaction has committed. See [CLAUDE.md](CLAUDE.md#domain-events) for the rules.
 
+### Modules
+
+Domain modules live in `apps/api/src/modules/<module>/`, each with its own Postgres schema, and talk to each other only through their public entry (`index.ts`) and domain events. ESLint fails when a module (or `app.module.ts`) imports another module's internal files, or when code outside a repository class (`*.repository.ts`) touches the database. See [CLAUDE.md](CLAUDE.md#module-conventions) for the layout and rules; `books` is the reference module.
+
+### Books catalogue
+
+The `books` module (schema `books`) stores works (`works`), their authors in credit order (`authors`, `work_authors`) and editions (`editions`, with an optional unique ISBN-13 and an ISO 639-1 language).
+
+| Route                   | Answer                                                                                                                                                                             |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /v1/books`        | Adds a work with its authors (ordered names, one new author row per name for now) and at least one edition. `201` with the book, `409 isbn_already_exists` for a duplicate ISBN-13 |
+| `GET /v1/books/:workId` | `200` with the work, its authors in credit order and its editions (by publication year), `404 book_not_found`                                                                      |
+
+ISBN-13s are 13 digits without hyphens and must have a valid check digit. A duplicate is detected by the unique constraint, so two concurrent requests with the same ISBN-13 answer `201` and `409`. The work, its authors and editions are written in one transaction; after it committed, the module publishes `BookAddedToCatalogue` v1 (`{ workId, editionIds }`). Other modules check a work through `BOOK_CATALOGUE` (`workExists(workId)`), exported from `modules/books/index.ts` with the event. Both routes are open until the global auth guard (LIB-20) protects them by default.
+
 ## Environment and configuration
 
 Configuration comes only from environment variables, validated at startup. The api refuses to start with a readable error listing every broken variable, for example:
@@ -313,7 +331,7 @@ pnpm format:check
 
 `pnpm test` needs only a running Docker daemon, no `pnpm db:up` and no `.env` (see [Testing](#testing)).
 
-Turborepo caches `test` like `lint` and `typecheck`: the tests are hermetic, so a run is replayed from the cache while nothing they depend on changed (the package files, the lockfile, `tsconfig.base.json`, `docker/postgres/**` and `.env.test`). Use `pnpm test --force` to run them anyway. `DOCKER_*` and `TESTCONTAINERS_*` variables are passed through to the tests, so a non-default Docker socket (`DOCKER_HOST`) works.
+Turborepo caches `test` like `lint` and `typecheck`: the tests are hermetic, so a run is replayed from the cache while nothing they depend on changed (the package files, the lockfile, `tsconfig.base.json`, `eslint.config.js`, `docker/postgres/**` and `.env.test`). Use `pnpm test --force` to run them anyway. `DOCKER_*` and `TESTCONTAINERS_*` variables are passed through to the tests, so a non-default Docker socket (`DOCKER_HOST`) works.
 
 The same checks run in CI (`.github/workflows/ci.yml`) on every pull request and every push to `main`. After the tests, CI starts the compose Postgres (`pnpm db:up`) and runs `pnpm db:migrate`, `pnpm db:migration:check` (fails when an entity changed without a migration) and `pnpm db:seed` against it. A pull request can be merged only when CI is green.
 
@@ -329,11 +347,12 @@ How the harness in `apps/api/test/support/` works:
 
 Writing an integration test: import `test` from `./support/integration-test.js` instead of `vitest` and take what you need from its fixtures.
 
-| Fixture      | What it is                                                                          |
-| ------------ | ----------------------------------------------------------------------------------- |
-| `app`        | The full Nest app (`AppModule` + `configureApp`), booted once per file              |
-| `http`       | A supertest client bound to `app`                                                   |
-| `dataSource` | The TypeORM `DataSource` of `app`, for arranging data and asserting on the database |
+| Fixture      | What it is                                                                                                   |
+| ------------ | ------------------------------------------------------------------------------------------------------------ |
+| `app`        | The full Nest app (`AppModule` + `configureApp`), booted once per file                                       |
+| `http`       | A supertest client bound to `app`                                                                            |
+| `dataSource` | The TypeORM `DataSource` of `app`, for arranging data and asserting on the database                          |
+| `factories`  | A `typeorm-extension` `SeederFactoryManager` on `dataSource` with every module factory, fresh for every test |
 
 ```ts
 import { describe, expect } from 'vitest';
@@ -361,6 +380,15 @@ const test = integrationTest({ imports: [ProbeModule] });
 
 Tests that need no app (for example `config.test.ts`) use plain `vitest`; they still get their own database, which costs a few milliseconds. `migrations.test.ts` reverts and re-applies every migration through the CLI data source on its own per-file database, so it cannot affect other files.
 
-Factories (`typeorm-extension`, `factories/*.factory.ts`) are not wired into the harness yet because there is no entity to build. The first module (LIB-18) adds them on top of the `dataSource` fixture.
+Arrange data through the module factories (registered in `apps/api/test/support/seeder-factories.ts`). A factory builds a deterministic, valid aggregate (every test starts from the same default values); `setMeta` overrides parts of it:
+
+```ts
+const work = await factories
+  .get<WorkEntity, WorkFactoryMeta>(WorkEntity)
+  .setMeta({ title: 'Good Omens', authors: ['Terry Pratchett', 'Neil Gaiman'] })
+  .save();
+```
+
+Module tests live in `apps/api/test/modules/<module>/`. `apps/api/test/lint/` lints virtual files with the real ESLint config to prove the module boundary and database access rules.
 
 A first run on a machine without the image downloads `postgis/postgis` and builds the image; later runs reuse the cached layers.

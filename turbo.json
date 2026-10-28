@@ -1,12 +1,15 @@
 {
   "$schema": "https://turborepo.com/schema.json",
   "tasks": {
-    "lint": {},
+    "lint": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/eslint.config.js"]
+    },
     "typecheck": {},
     "test": {
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/tsconfig.base.json",
+        "$TURBO_ROOT$/eslint.config.js",
         "$TURBO_ROOT$/docker/postgres/**",
         "$TURBO_ROOT$/.env.test"
       ],

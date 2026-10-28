@@ -48,6 +48,25 @@ describe('OpenAPI', () => {
     ]);
   });
 
+  test('describes the books endpoints with their zod schemas', async ({ http }) => {
+    const document = (await http.get('/docs-json')).body as OpenApiDocument;
+    const books = document.paths['/v1/books'];
+    const book = document.paths['/v1/books/{workId}'];
+
+    expect(books?.post?.requestBody?.content['application/json']?.schema).toEqual({
+      $ref: '#/components/schemas/AddBook',
+    });
+    expect(books?.post?.responses['201']?.content?.['application/json']?.schema).toEqual({
+      $ref: '#/components/schemas/Book',
+    });
+    expect(book?.get?.parameters?.filter((parameter) => parameter.in === 'path')).toEqual([
+      expect.objectContaining({ name: 'workId', in: 'path', required: true }),
+    ]);
+    expect(book?.get?.responses['200']?.content?.['application/json']?.schema).toEqual({
+      $ref: '#/components/schemas/Book',
+    });
+  });
+
   test('documents the optional app headers and the 426 answer on every operation', async ({
     http,
   }) => {
