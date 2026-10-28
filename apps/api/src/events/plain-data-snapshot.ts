@@ -62,12 +62,13 @@ function copyFields(value: object, snapshot: Snapshot): object {
 }
 
 function emptyCopyOf(value: object): object {
-  if (Array.isArray(value)) {
+  const prototype: unknown = Object.getPrototypeOf(value);
+
+  if (Array.isArray(value) && prototype === Array.prototype) {
     return new Array<unknown>(value.length);
   }
 
-  const prototype: unknown = Object.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null) {
+  if (Array.isArray(value) || (prototype !== Object.prototype && prototype !== null)) {
     throw new TypeError(NOT_PLAIN);
   }
 

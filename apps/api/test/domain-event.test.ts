@@ -114,6 +114,15 @@ describe('defineDomainEvent', () => {
     expect(reads).toBe(0);
   });
 
+  test('rejects an Array subclass', () => {
+    class Shelf extends Array<string> {}
+    const Anything = defineDomainEvent<object>('AnythingHappened', 1);
+
+    expect(() => Anything.create({ bookIds: Shelf.from(['book-1']) })).toThrow(
+      'Domain event payloads may contain only plain objects, arrays and primitives.',
+    );
+  });
+
   test('rejects a function in the payload', () => {
     const Anything = defineDomainEvent<object>('AnythingHappened', 1);
 
