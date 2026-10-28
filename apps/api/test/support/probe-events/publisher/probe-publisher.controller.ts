@@ -1,6 +1,7 @@
 import { Body, Controller, HttpCode, HttpStatus, Inject, Post } from '@nestjs/common';
 import { z } from 'zod';
 import { EVENT_BUS, type EventBus } from '../../../../src/events/event-bus.js';
+import { Public } from '../../../../src/http/authentication/public.decorator.js';
 import { ProbeBookFinished, ProbeBookFinishedV2 } from '../probe-book-finished.event.js';
 
 const finishedBookSchema = z.object({
@@ -16,6 +17,7 @@ const finishedBookV2Schema = finishedBookSchema.extend({
 type FinishedBook = z.infer<typeof finishedBookSchema>;
 type FinishedBookV2 = z.infer<typeof finishedBookV2Schema>;
 
+@Public()
 @Controller('probe-events')
 export class ProbePublisherController {
   constructor(@Inject(EVENT_BUS) private readonly events: EventBus) {}

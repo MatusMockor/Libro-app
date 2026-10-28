@@ -9,17 +9,20 @@ import { ANY_UUID } from '../../support/matchers.js';
 import { ProbeBooksSubscriberModule } from '../../support/probe-events/books/probe-books-subscriber.module.js';
 import { ProbeEventRecorder } from '../../support/probe-events/subscriber/probe-event-recorder.js';
 
-const test = integrationTest({ imports: [ProbeBooksSubscriberModule] }).extend(
-  'recorder',
-  ({ app }) => {
+const ROUTE = '/v1/books';
+
+const test = integrationTest({ imports: [ProbeBooksSubscriberModule] })
+  .extend('recorder', ({ app }) => {
     const recorder = app.get(ProbeEventRecorder);
     recorder.clear();
 
     return recorder;
-  },
-);
+  })
+  .extend('addBook', ({ http, signIn }) => async (book: object) => {
+    const { authorization } = await signIn();
 
-const ROUTE = '/v1/books';
+    return http.post(ROUTE).set('Authorization', authorization).send(book);
+  });
 
 const ENGLISH_ISBN = '9780552137034';
 const SLOVAK_ISBN = '9788055100548';
@@ -51,8 +54,19 @@ async function catalogueSize(dataSource: DataSource): Promise<CatalogueSize | un
 }
 
 describe('POST /v1/books', () => {
-  test('answers 201 with the added book', async ({ http }) => {
+  test('answers 401 authentication_required without an access token', async ({
+    http,
+    dataSource,
+  }) => {
     const response = await http.post(ROUTE).send(GOOD_OMENS);
+
+    expect(response.status).toBe(401);
+    expect((response.body as ProblemDetails).code).toBe('authentication_required');
+    expect(await catalogueSize(dataSource)).toEqual({ works: 0, authors: 0, editions: 0 });
+  });
+
+  test('answers 201 with the added book', async ({ addBook }) => {
+    const response = await addBook(GOOD_OMENS);
 
     expect(response.status).toBe(201);
     expect(response.headers['content-type']).toMatch(/^application\/json/);
@@ -77,10 +91,10 @@ describe('POST /v1/books', () => {
   });
 
   test('stores the work, its authors in credit order and its editions', async ({
-    http,
+    addBook,
     dataSource,
   }) => {
-    const book = (await http.post(ROUTE).send(GOOD_OMENS)).body as BookResponse;
+    const book = (await addBook(GOOD_OMENS)).body as BookResponse;
 
     const authors = await dataSource.query<{ name: string; position: number }[]>(
       `SELECT author.name, credit.position
@@ -107,10 +121,10 @@ describe('POST /v1/books', () => {
   });
 
   test('publishes BookAddedToCatalogue once with the ids of the stored book', async ({
-    http,
+    addBook,
     recorder,
   }) => {
-    const book = (await http.post(ROUTE).send(GOOD_OMENS)).body as BookResponse;
+    const book = (await addBook(GOOD_OMENS)).body as BookResponse;
 
     expect(recorder.all()).toEqual([
       {
@@ -125,8 +139,8 @@ describe('POST /v1/books', () => {
     ]);
   });
 
-  test('strips fields the schema does not declare', async ({ http }) => {
-    const response = await http.post(ROUTE).send({
+  test('strips fields the schema does not declare', async ({ addBook }) => {
+    const response = await addBook({
       ...GOOD_OMENS,
       rating: 5,
       editions: [{ isbn13: ENGLISH_ISBN, language: 'en', price: 12 }],
@@ -171,8 +185,8 @@ describe('POST /v1/books', () => {
       body: { ...GOOD_OMENS, editions: [{ isbn13: ENGLISH_ISBN, language: 'English' }] },
       errors: [{ path: 'editions.0.language', code: 'invalid_format' }],
     },
-  ])('rejects $problem with 400', async ({ body, errors }, { http, dataSource }) => {
-    const response = await http.post(ROUTE).send(body);
+  ])('rejects $problem with 400', async ({ body, errors }, { addBook, dataSource }) => {
+    const response = await addBook(body);
     const problem = response.body as ProblemDetails;
 
     expect(response.status).toBe(400);
@@ -182,11 +196,11 @@ describe('POST /v1/books', () => {
   });
 
   test('answers 409 and stores nothing when two editions of the request share an ISBN-13', async ({
-    http,
+    addBook,
     dataSource,
     recorder,
   }) => {
-    const response = await http.post(ROUTE).send({
+    const response = await addBook({
       ...GOOD_OMENS,
       editions: [
         { isbn13: ENGLISH_ISBN, language: 'en' },
@@ -209,7 +223,7 @@ describe('POST /v1/books', () => {
   });
 
   test('answers 409 and stores nothing when an ISBN-13 is already in the catalogue', async ({
-    http,
+    addBook,
     dataSource,
     factories,
     recorder,
@@ -221,7 +235,7 @@ describe('POST /v1/books', () => {
       })
       .save();
 
-    const response = await http.post(ROUTE).send(GOOD_OMENS);
+    const response = await addBook(GOOD_OMENS);
 
     expect(response.status).toBe(409);
     expect((response.body as ProblemDetails).code).toBe('isbn_already_exists');
@@ -230,14 +244,11 @@ describe('POST /v1/books', () => {
   });
 
   test('answers 409 to the loser of two concurrent requests with the same ISBN-13', async ({
-    http,
+    addBook,
     dataSource,
     recorder,
   }) => {
-    const responses = await Promise.all([
-      http.post(ROUTE).send(GOOD_OMENS),
-      http.post(ROUTE).send(GOOD_OMENS),
-    ]);
+    const responses = await Promise.all([addBook(GOOD_OMENS), addBook(GOOD_OMENS)]);
 
     expect(responses.map(({ status }) => status).toSorted()).toEqual([201, 409]);
     expect(await catalogueSize(dataSource)).toEqual({ works: 1, authors: 2, editions: 2 });

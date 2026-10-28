@@ -10,6 +10,7 @@ const { ProbeModule } = await import('./support/probe/probe.module.js');
 const test = integrationTest({ imports: [ProbeModule] });
 
 const ROUTE = '/v1/probe/books?limit=5';
+const PROTECTED_ROUTE = '/v1/probe/protected';
 
 const PROBLEM_JSON = /^application\/problem\+json(;|$)/;
 
@@ -139,6 +140,22 @@ describe('app version check', () => {
       instance: '/v1/probe/books',
       code: 'invalid_app_client',
     });
+  });
+
+  test('checks the app version before authentication', async ({ http }) => {
+    const outdated = await http
+      .get(PROTECTED_ROUTE)
+      .set('X-Platform', 'ios')
+      .set('X-App-Version', '1.99.9');
+    const supported = await http
+      .get(PROTECTED_ROUTE)
+      .set('X-Platform', 'ios')
+      .set('X-App-Version', '2.0.0');
+
+    expect(outdated.status).toBe(426);
+    expect((outdated.body as ClientProblem).code).toBe('app_update_required');
+    expect(supported.status).toBe(401);
+    expect((supported.body as ClientProblem).code).toBe('authentication_required');
   });
 
   test('checks version neutral routes too', async ({ http }) => {

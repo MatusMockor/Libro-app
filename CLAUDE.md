@@ -25,7 +25,7 @@ It is NOT a dating app (people meet in groups of 3+, around books, in public pla
 | Auth | Own JWT: short-lived access JWT (`@nestjs/jwt`) + rotated opaque refresh tokens, argon2id passwords, `@nestjs/throttler` (see [Auth](#auth)) |
 | Mobile | Expo / React Native |
 | Photo storage | Object storage (S3 compatible), GPS / EXIF stripped on upload |
-| Later | Redis (realtime presence, BullMQ queues), Stripe |
+| Later | Redis (realtime presence, BullMQ queues, shared rate-limit storage), Stripe |
 | Repo layout | Monorepo, pnpm workspaces + Turborepo: `apps/api`, `apps/mobile`, `packages/tree-engine`, `packages/contracts` |
 
 Rejected and why (do not reopen without a new reason):
@@ -112,13 +112,15 @@ factories/ seeds/    typeorm-extension factories and seeders
 
 Own JWT, no auth framework.
 
-- **Access token:** JWT signed with `@nestjs/jwt` (HS256, secret from env), lifetime 15 minutes, claims only `sub` (user id) and standard ones - no email or other personal data. Sent as `Authorization: Bearer <token>`.
+- **Access token:** JWT signed with `@nestjs/jwt` (HS256, secret `JWT_ACCESS_SECRET`, at least 32 characters), lifetime 15 minutes, claims only `sub` (user id), `iss` (`libro-api`), `aud` (`libro-app`), `iat` and `exp` - no email or other personal data. Verification accepts only HS256 and checks signature, `iss`, `aud`, `exp` / `nbf`, that `sub` is a UUID, that integer `iat` and `exp` are present, `iat` is not in the future and `exp - iat` is at most 15 minutes. Production refuses to start with a blank secret or a known non-secret value (`src/config/non-secret-values.ts`: the `.env.example` and test values). Sent as `Authorization: Bearer <token>`.
 - **Refresh token:** opaque random value (32 bytes), stored only as a SHA-256 hash in the `auth` schema. A token family (one sign-in) expires 30 days after sign-in, an absolute limit: rotation carries the family expiry forward and never extends it.
 - **Rotation:** every refresh revokes the presented token and issues a new one in the same family, atomically - one conditional update consumes the token only while it is active, and a replacement is issued only when exactly one row was consumed. Presenting an already revoked token revokes the whole family. Logout revokes the current token.
-- **Passwords:** argon2id (`@node-rs/argon2`). Never logged, never returned.
-- **Protected by default:** a global auth guard; open endpoints opt out with `@Public()` (`/health`, register, login, refresh). The current user comes from a `@CurrentUser()` decorator, never from the request body.
-- **Rate limit:** `@nestjs/throttler` on register, login and refresh. Login errors do not reveal whether the email exists.
-- **Events:** the auth module publishes `UserRegistered`; other modules (e.g. `profiles`) react to it and never read auth tables.
+- **Passwords:** argon2id (`@node-rs/argon2`, m=19456 KiB, t=2, p=1) behind `PASSWORD_HASHER`. 10 to 128 characters (Unicode code points, after NFKC normalisation), no other composition rules. Never logged, never returned. Emails are stored trimmed and lower case (unique `users_email_key`).
+- **Protected by default:** a global auth guard; open endpoints opt out with `@Public()` (`/health`, register, login, refresh). The current user comes from a `@CurrentUser()` decorator (`AuthenticatedUser`, `{ id }`), never from the request body. Guard, decorators and the `ACCESS_TOKEN_VERIFIER` interface are platform code in `src/http/authentication/`; the auth module provides the JWT verifier, wired in `AppModule` (`AuthenticationModule.forRoot({ verifierFrom: [AuthModule] })`). The guard runs after the app version guard, so an outdated app gets `426` before `401`.
+- **Errors:** no or malformed `Authorization` header -> `401 authentication_required` (`WWW-Authenticate: Bearer`); invalid, expired or foreign token -> `401 invalid_access_token` (`WWW-Authenticate: Bearer error="invalid_token"`); wrong email or password -> `401 invalid_credentials` (same body for both); taken email -> `409 email_already_registered`; rate limit -> `429 too_many_requests` with `Retry-After`.
+- **Endpoints:** `POST /v1/auth/register` (`201`), `POST /v1/auth/login` (`200`), both answering `{ user: { id, email }, accessToken, tokenType: 'Bearer', expiresIn }` (refresh adds `refreshToken`); `GET /v1/me` answers `{ id, email }`.
+- **Rate limit:** `@nestjs/throttler` on register, login and refresh: `AUTH_RATE_LIMIT_MAX` requests (default 10) per client IP and route within `AUTH_RATE_LIMIT_WINDOW_SECONDS` (default 60). Storage is in memory, fine for one instance; more instances need a shared store (Redis, later). Behind a proxy, set Express `trust proxy` so the client IP is used. Login errors do not reveal whether the email exists: an unknown email is verified against a dummy argon2 hash, so both failures take comparable time.
+- **Events:** the auth module publishes `UserRegistered` v1 (`{ userId }`) after the user is committed; other modules (e.g. `profiles`) react to it and never read auth tables.
 - **Google / Apple (after email login, LIB-22 / LIB-24):** the app signs in with the provider and sends its ID token. The backend verifies the signature against the provider JWKS and the claims - issuer, audience (our client ID), expiry, `nonce` where the flow uses one, and rejects invalid `iat` / `nbf` - before trusting `sub`, then issues its own tokens.
 - **On the device:** the app keeps tokens in `expo-secure-store`.
 

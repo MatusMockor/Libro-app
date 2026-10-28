@@ -16,6 +16,8 @@ import {
 
 const OPENAPI_PATH = 'docs';
 
+const BEARER_SCHEME = 'bearer';
+
 const PROBLEM_SCHEMA_NAME = 'ProblemDetails';
 
 const PROBLEM_CONTENT = {
@@ -30,6 +32,8 @@ function createDocument(app: INestApplication): OpenAPIObject {
   const config = new DocumentBuilder()
     .setTitle('read more API')
     .setVersion('1')
+    .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, BEARER_SCHEME)
+    .addSecurityRequirements(BEARER_SCHEME)
     .addGlobalParameters(
       {
         name: APP_VERSION_HEADER,

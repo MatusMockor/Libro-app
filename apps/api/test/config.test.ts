@@ -1,14 +1,23 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { configModuleOptions } from '../src/config/config-module.options.js';
-import { envFilePaths } from '../src/config/env-file-paths.js';
+import { envFilePaths, WORKSPACE_ROOT } from '../src/config/env-file-paths.js';
 import { envSchema } from '../src/config/env.schema.js';
 import { loadEnv } from '../src/config/load-env.js';
+import {
+  LOCAL_DEV_JWT_ACCESS_SECRET,
+  NON_SECRET_JWT_ACCESS_SECRETS,
+  TEST_JWT_ACCESS_SECRET,
+} from '../src/config/non-secret-values.js';
 import { AppVersion } from '../src/shared/app-version.js';
+
+const DATABASE_URL = 'postgresql://libro_app@127.0.0.1:5433/libro_app';
+const JWT_ACCESS_SECRET = 'a-config-test-secret-of-at-least-32-chars';
+const REQUIRED_ENV = { DATABASE_URL, JWT_ACCESS_SECRET };
 
 describe('config validation', () => {
   afterEach(() => {
@@ -40,10 +49,7 @@ describe('config validation', () => {
   });
 
   it('rejects a port outside the valid range', () => {
-    const result = envSchema.safeParse({
-      PORT: '70000',
-      DATABASE_URL: 'postgres://libro_app@127.0.0.1:5433/libro_app',
-    });
+    const result = envSchema.safeParse({ ...REQUIRED_ENV, PORT: '70000' });
 
     expect(result.success).toBe(false);
     expect(result.error?.issues.map((issue) => issue.message)).toEqual([
@@ -65,7 +71,7 @@ describe('config validation', () => {
 
   it('parses the minimum app versions', () => {
     const env = envSchema.parse({
-      DATABASE_URL: 'postgresql://libro_app@127.0.0.1:5433/libro_app',
+      ...REQUIRED_ENV,
       MIN_APP_VERSION_IOS: '2.1.0',
       MIN_APP_VERSION_ANDROID: '1.10.3',
     });
@@ -74,17 +80,95 @@ describe('config validation', () => {
     expect(env.MIN_APP_VERSION_ANDROID.toString()).toBe('1.10.3');
   });
 
-  it('applies defaults for optional variables', () => {
-    const env = envSchema.parse({
-      DATABASE_URL: 'postgresql://libro_app@127.0.0.1:5433/libro_app',
+  it('refuses to start without a JWT_ACCESS_SECRET', async () => {
+    vi.stubEnv('JWT_ACCESS_SECRET', undefined);
+
+    await expect(ConfigModule.forRoot(configModuleOptions([]))).rejects.toThrow(
+      'Config validation error: JWT_ACCESS_SECRET: is required',
+    );
+  });
+
+  it('refuses a JWT_ACCESS_SECRET shorter than 32 characters', () => {
+    const result = envSchema.safeParse({ ...REQUIRED_ENV, JWT_ACCESS_SECRET: 'x'.repeat(31) });
+
+    expect(result.error?.issues.map(({ path, message }) => ({ path, message }))).toEqual([
+      { path: ['JWT_ACCESS_SECRET'], message: 'must be at least 32 characters' },
+    ]);
+  });
+
+  it('refuses a whitespace-only JWT_ACCESS_SECRET', () => {
+    const result = envSchema.safeParse({ ...REQUIRED_ENV, JWT_ACCESS_SECRET: ' '.repeat(40) });
+
+    expect(result.error?.issues.map(({ path, message }) => ({ path, message }))).toEqual([
+      { path: ['JWT_ACCESS_SECRET'], message: 'must not be blank' },
+    ]);
+  });
+
+  it.for([
+    { name: 'the local development secret', secret: LOCAL_DEV_JWT_ACCESS_SECRET },
+    { name: 'the test secret', secret: TEST_JWT_ACCESS_SECRET },
+  ])('refuses to start in production with $name', async ({ secret }) => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('JWT_ACCESS_SECRET', secret);
+
+    await expect(ConfigModule.forRoot(configModuleOptions([]))).rejects.toThrow(
+      'Config validation error: JWT_ACCESS_SECRET: must not be the development value in production',
+    );
+  });
+
+  it('accepts a strong JWT_ACCESS_SECRET in production', () => {
+    const result = envSchema.safeParse({
+      ...REQUIRED_ENV,
+      NODE_ENV: 'production',
+      JWT_ACCESS_SECRET: 'kq3V9x-production-grade-secret-7Hd2LmZp0Rw',
     });
+
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts the local development secret outside production', () => {
+    const result = envSchema.safeParse({
+      ...REQUIRED_ENV,
+      NODE_ENV: 'development',
+      JWT_ACCESS_SECRET: LOCAL_DEV_JWT_ACCESS_SECRET,
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it('lists the JWT_ACCESS_SECRET of .env.example as a non-secret value', async () => {
+    const example = await readFile(resolve(WORKSPACE_ROOT, '.env.example'), 'utf8');
+    const value = /^JWT_ACCESS_SECRET=(.*)$/m.exec(example)?.[1];
+
+    expect(value).toBe(LOCAL_DEV_JWT_ACCESS_SECRET);
+    expect(NON_SECRET_JWT_ACCESS_SECRETS).toContain(value);
+  });
+
+  it('refuses a rate limit that is not a positive integer', () => {
+    const result = envSchema.safeParse({
+      ...REQUIRED_ENV,
+      AUTH_RATE_LIMIT_MAX: '0',
+      AUTH_RATE_LIMIT_WINDOW_SECONDS: 'a minute',
+    });
+
+    expect(result.error?.issues.map(({ path, message }) => ({ path, message }))).toEqual([
+      { path: ['AUTH_RATE_LIMIT_MAX'], message: 'must be at least 1' },
+      { path: ['AUTH_RATE_LIMIT_WINDOW_SECONDS'], message: 'must be a number' },
+    ]);
+  });
+
+  it('applies defaults for optional variables', () => {
+    const env = envSchema.parse(REQUIRED_ENV);
 
     expect(env).toEqual({
       NODE_ENV: 'development',
       PORT: 3000,
-      DATABASE_URL: 'postgresql://libro_app@127.0.0.1:5433/libro_app',
+      DATABASE_URL,
       MIN_APP_VERSION_IOS: AppVersion.parse('0.0.0'),
       MIN_APP_VERSION_ANDROID: AppVersion.parse('0.0.0'),
+      JWT_ACCESS_SECRET,
+      AUTH_RATE_LIMIT_MAX: 10,
+      AUTH_RATE_LIMIT_WINDOW_SECONDS: 60,
     });
   });
 });

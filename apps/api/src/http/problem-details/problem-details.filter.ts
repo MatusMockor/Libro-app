@@ -41,6 +41,9 @@ export class ProblemDetailsFilter implements ExceptionFilter {
 
     const instance = this.instanceOf(httpAdapter.getRequestUrl(context.getRequest()) as string);
 
+    for (const [name, value] of Object.entries(details.headers ?? {})) {
+      httpAdapter.setHeader(response, name, value);
+    }
     httpAdapter.setHeader(response, 'Content-Type', PROBLEM_CONTENT_TYPE);
     httpAdapter.reply(response, toProblemDetails(details, instance), details.status);
   }

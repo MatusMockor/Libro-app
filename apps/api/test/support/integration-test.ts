@@ -7,6 +7,7 @@ import { test as base } from 'vitest';
 import { AppModule } from '../../src/app.module.js';
 import { configureApp } from '../../src/app.setup.js';
 import { seederFactories } from './seeder-factories.js';
+import { signInWith } from './sign-in.js';
 import { truncateAllTables } from './truncate-tables.js';
 
 type Imports = NonNullable<ModuleMetadata['imports']>;
@@ -41,7 +42,8 @@ export function integrationTest({
     .extend('factories', ({ dataSource }) => seederFactories(dataSource))
     .extend('emptyDatabase', { auto: true }, async ({ dataSource }) => {
       await truncateAllTables(dataSource);
-    });
+    })
+    .extend('signIn', ({ app, factories }) => signInWith(app, factories));
 }
 
 export const test = integrationTest();
