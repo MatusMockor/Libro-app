@@ -64,6 +64,18 @@ Later (design so they plug in via events and interfaces):
 - `realtime` - live sessions (WebSocket gateway)
 - `search`, `ai`, `notifications`
 
+### Domain events
+
+In process, immediately, no outbox.
+
+- **Delivery:** `publish` runs every handler in the same process and resolves after all of them finished. An event is lost if the process crashes or a handler fails; acceptable for the MVP. Moving to an outbox / queue later must not change the publisher or handler API.
+- **Publish after commit:** publish only after the write has been committed, never from inside an open transaction, so handlers never see rolled-back data.
+- **Definition:** `defineDomainEvent<Payload>('BookFinished', 1)` once, in the publishing module's public API; publisher and handlers use the same definition. Names are past tense PascalCase (`BookFinished`, `SessionEnded`).
+- **Versioning:** every event has a `version` (starts at 1). A breaking payload change is a new version; the old one keeps being published while consumers exist. Handlers subscribe to one version (`BookFinished.v1`), so a v2 event never reaches a v1 handler.
+- **Payload:** ids and facts only, never entities or personal data beyond what the consumer needs. Events are deeply immutable copies; payloads hold only plain objects, arrays and primitives (no `Date`, `Map`, `Set`, class instances or cycles).
+- **Handlers:** `@OnDomainEvent(BookFinished)` on a provider method. A failing handler is logged (event, version, handler, stack) and neither fails the publisher nor stops other handlers. Handlers must stay fast; slow work goes to a queue later. Handlers live in singleton providers; the app refuses to start otherwise.
+- **Transport:** only `src/events` touches `@nestjs/event-emitter`; everyone else injects `EVENT_BUS` (ESLint enforces it).
+
 ## The tree rule
 
 - **Never store a picture of the tree.** Store what the reader did (sessions, marked parts, insights from friends, congratulations) and compute the tree from that data every time.

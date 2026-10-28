@@ -132,7 +132,7 @@ Seeders and factories use [`typeorm-extension`](https://github.com/tada5hi/typeo
 
 ## API
 
-The api code that is not a domain module lives in `apps/api/src/http/` (validation, error format, OpenAPI) and `apps/api/src/health/`. Both are wired in `AppModule` and `configureApp`, so tests and `main.ts` get exactly the same behaviour.
+The api code that is not a domain module lives in `apps/api/src/http/` (validation, error format, OpenAPI), `apps/api/src/health/` and `apps/api/src/events/` (domain events). They are wired in `AppModule` and `configureApp`, so tests and `main.ts` get exactly the same behaviour.
 
 ### Versioning
 
@@ -242,6 +242,41 @@ The Swagger UI is served at `/docs` and the OpenAPI 3.0 document at `/docs-json`
 | database down | `503`  | `{ "status": "error", "checks": { "database": "down" } }` |
 
 The body keeps the same `application/json` shape for both answers so monitoring can read `checks` (it is a probe report, not an error, so it is the one non-2xx answer that is not Problem Details). The Docker Compose healthcheck of the api only looks at the status code. New checks (e.g. Redis) are added as `HealthIndicator`s under the `HEALTH_INDICATORS` token and appear as new keys in `checks`, which is backward compatible.
+
+### Domain events
+
+Modules talk through domain events instead of calling each other. `EventsModule` (`apps/api/src/events/`) is global, so any module injects the bus without importing it. The transport is [`@nestjs/event-emitter`](https://github.com/nestjs/event-emitter), hidden behind `EVENT_BUS`; ESLint rejects imports of `@nestjs/event-emitter` / `eventemitter2` outside `src/events/`.
+
+```ts
+export interface BookFinishedPayload {
+  readonly bookId: string;
+  readonly readerId: string;
+}
+
+export const BookFinished = defineDomainEvent<BookFinishedPayload>('BookFinished', 1);
+export type BookFinished = DomainEventOf<typeof BookFinished>;
+
+@Injectable()
+export class ReadingService {
+  constructor(@Inject(EVENT_BUS) private readonly events: EventBus) {}
+
+  async finish(bookId: string, readerId: string): Promise<void> {
+    await this.events.publish(BookFinished.create({ bookId, readerId }));
+  }
+}
+
+@Injectable()
+export class ShelfHandler {
+  @OnDomainEvent(BookFinished)
+  async onBookFinished(event: BookFinished): Promise<void> {}
+}
+```
+
+- An event is a deeply frozen `{ name, version, occurredAt, payload }`; `create(payload, occurredAt?)` copies both (the payload in one pass that accepts only plain objects, arrays and primitives with enumerable data fields, and freezes the copy) and stamps `occurredAt` with the current time unless given.
+- Handlers subscribe to `<name>.v<version>` (`BookFinished.v1`), so a `BookFinished` v2 never reaches a v1 handler.
+- `publish` resolves after every handler finished. A handler that throws or rejects is logged under the `DomainEvents` context (`Handler ShelfHandler.onBookFinished failed for BookFinished v1: ...` plus the stack); the publisher and the other handlers are not affected.
+- Handlers live in singleton (default scope) providers. A request or transient scoped provider with an `@OnDomainEvent` method, also one that is request scoped through a dependency, stops the app at startup.
+- Delivery is in process and immediate, without an outbox: publish only after the transaction has committed. See [CLAUDE.md](CLAUDE.md#domain-events) for the rules.
 
 ## Environment and configuration
 

@@ -4,6 +4,9 @@ import prettier from 'eslint-config-prettier';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
+const EVENTS_TRANSPORT_MESSAGE =
+  'Publish through EVENT_BUS and handle with @OnDomainEvent from src/events.';
+
 export default defineConfig(
   {
     ignores: ['**/dist/**', '**/coverage/**', '**/.turbo/**', '**/node_modules/**'],
@@ -27,6 +30,27 @@ export default defineConfig(
         },
       ],
       '@typescript-eslint/no-extraneous-class': ['error', { allowWithDecorator: true }],
+    },
+  },
+  {
+    files: ['apps/api/**/*.ts'],
+    ignores: ['apps/api/src/events/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: ['@nestjs/event-emitter', 'eventemitter2'].map((name) => ({
+            name,
+            message: EVENTS_TRANSPORT_MESSAGE,
+          })),
+          patterns: [
+            {
+              group: ['@nestjs/event-emitter/*', 'eventemitter2/*'],
+              message: EVENTS_TRANSPORT_MESSAGE,
+            },
+          ],
+        },
+      ],
     },
   },
   {

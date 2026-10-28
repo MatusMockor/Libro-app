@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { configModuleOptions } from './config/config-module.options.js';
 import { envFilePaths, WORKSPACE_ROOT } from './config/env-file-paths.js';
 import { DatabaseModule } from './database/database.module.js';
+import { EventsModule } from './events/events.module.js';
 import { HealthModule } from './health/health.module.js';
 import { AppVersionModule } from './http/app-version/app-version.module.js';
 import { HttpApiModule } from './http/http-api.module.js';
@@ -11,6 +12,7 @@ import { HttpApiModule } from './http/http-api.module.js';
   imports: [
     ConfigModule.forRoot(configModuleOptions(envFilePaths(process.env.NODE_ENV, WORKSPACE_ROOT))),
     DatabaseModule,
+    EventsModule,
     HttpApiModule,
     AppVersionModule,
     HealthModule,
