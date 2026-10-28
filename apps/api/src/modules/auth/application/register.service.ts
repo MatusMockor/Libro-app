@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { EVENT_BUS, type EventBus } from '../../../events/event-bus.js';
 import { UserRegistered } from '../events/user-registered.event.js';
 import type { AuthSession } from './auth-session.js';
-import type { Credentials } from './credentials.js';
+import { normaliseCredentials, type Credentials } from './credentials.js';
 import { PASSWORD_HASHER, type PasswordHasher } from './password-hasher.js';
 import { SessionService } from './session.service.js';
 import { USER_REPOSITORY, type UserRepository } from './user-repository.js';
@@ -16,7 +16,8 @@ export class RegisterService {
     private readonly sessions: SessionService,
   ) {}
 
-  async register({ email, password }: Credentials): Promise<AuthSession> {
+  async register(credentials: Credentials): Promise<AuthSession> {
+    const { email, password } = normaliseCredentials(credentials);
     const user = await this.users.add({ email, passwordHash: await this.passwords.hash(password) });
 
     await this.events.publish(UserRegistered.create({ userId: user.id }));

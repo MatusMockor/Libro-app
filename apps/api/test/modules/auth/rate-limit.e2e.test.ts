@@ -90,6 +90,19 @@ describe('auth rate limit', () => {
     expect(logins.map(({ status }) => status)).toEqual([200, 200]);
   });
 
+  test('ignores X-Forwarded-For when TRUST_PROXY is not set', async ({ http }) => {
+    const statuses = [];
+    for (const [serial, client] of ['203.0.113.1', '203.0.113.2', '203.0.113.3'].entries()) {
+      const response = await http
+        .post(REGISTER)
+        .set('X-Forwarded-For', client)
+        .send(registration(serial + 1));
+      statuses.push(response.status);
+    }
+
+    expect(statuses).toEqual([201, 201, 429]);
+  });
+
   test('does not limit other routes', async ({ http, signIn }) => {
     const user = await signIn();
 

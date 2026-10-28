@@ -1,7 +1,7 @@
 import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import type { AuthSession } from './auth-session.js';
-import type { Credentials } from './credentials.js';
+import { normaliseCredentials, type Credentials } from './credentials.js';
 import { InvalidCredentialsException } from './invalid-credentials.exception.js';
 import { PASSWORD_HASHER, type PasswordHasher } from './password-hasher.js';
 import { SessionService } from './session.service.js';
@@ -21,17 +21,18 @@ export class LoginService implements OnModuleInit {
     this.unknownUserHash = await this.passwords.hash(randomBytes(32).toString('base64url'));
   }
 
-  async login({ email, password }: Credentials): Promise<AuthSession> {
-    const credentials = await this.users.findCredentialsByEmail(email);
+  async login(credentials: Credentials): Promise<AuthSession> {
+    const { email, password } = normaliseCredentials(credentials);
+    const stored = await this.users.findCredentialsByEmail(email);
     const matches = await this.passwords.verify(
-      credentials?.passwordHash ?? this.unknownUserHash,
+      stored?.passwordHash ?? this.unknownUserHash,
       password,
     );
 
-    if (!credentials || !matches) {
+    if (!stored || !matches) {
       throw new InvalidCredentialsException();
     }
 
-    return this.sessions.start(credentials.user);
+    return this.sessions.start(stored.user);
   }
 }

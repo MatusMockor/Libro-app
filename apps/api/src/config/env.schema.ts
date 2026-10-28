@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { AppVersion } from '../shared/app-version.js';
 import { NON_SECRET_JWT_ACCESS_SECRETS } from './non-secret-values.js';
+import { parseTrustProxy } from './trust-proxy.js';
 
 const requiredOr = (message: string) => (issue: { input?: unknown }) =>
   issue.input === undefined ? 'is required' : message;
@@ -14,6 +15,26 @@ const positiveInteger = (fallback: number) =>
     .int({ error: 'must be an integer' })
     .min(1, { error: 'must be at least 1' })
     .default(fallback);
+
+const TRUST_PROXY_ERROR =
+  'must be a hop count or a comma-separated list of IP addresses, CIDR ranges, loopback, linklocal or uniquelocal';
+
+const trustProxy = z
+  .string({ error: TRUST_PROXY_ERROR })
+  .optional()
+  .transform((value, context) => {
+    if (value === undefined || value.trim() === '') {
+      return 0;
+    }
+
+    const trusted = parseTrustProxy(value.trim());
+    if (trusted === undefined) {
+      context.issues.push({ code: 'custom', input: value, message: TRUST_PROXY_ERROR });
+      return z.NEVER;
+    }
+
+    return trusted;
+  });
 
 const APP_VERSION_ERROR = 'must be a version like 1.4.0';
 
@@ -55,6 +76,7 @@ export const envSchema = z
       .refine((secret) => secret.trim() !== '', { error: 'must not be blank' }),
     AUTH_RATE_LIMIT_MAX: positiveInteger(10),
     AUTH_RATE_LIMIT_WINDOW_SECONDS: positiveInteger(60),
+    TRUST_PROXY: trustProxy,
   })
   .check((context) => {
     const { NODE_ENV, JWT_ACCESS_SECRET } = context.value;

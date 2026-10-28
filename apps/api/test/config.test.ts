@@ -6,7 +6,7 @@ import { Test } from '@nestjs/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { configModuleOptions } from '../src/config/config-module.options.js';
 import { envFilePaths, WORKSPACE_ROOT } from '../src/config/env-file-paths.js';
-import { envSchema } from '../src/config/env.schema.js';
+import { envSchema, type Env } from '../src/config/env.schema.js';
 import { loadEnv } from '../src/config/load-env.js';
 import {
   LOCAL_DEV_JWT_ACCESS_SECRET,
@@ -144,6 +144,71 @@ describe('config validation', () => {
     expect(NON_SECRET_JWT_ACCESS_SECRETS).toContain(value);
   });
 
+  it.for([
+    { value: '1', trusted: 1 },
+    { value: '0', trusted: 0 },
+    { value: ' 2 ', trusted: 2 },
+    { value: '10.0.0.1', trusted: ['10.0.0.1'] },
+    {
+      value: 'loopback, 10.0.0.0/8, fd00::/8, 2001:db8::1, uniquelocal,linklocal',
+      trusted: ['loopback', '10.0.0.0/8', 'fd00::/8', '2001:db8::1', 'uniquelocal', 'linklocal'],
+    },
+  ])('parses TRUST_PROXY $value', ({ value, trusted }) => {
+    const env = envSchema.parse({ ...REQUIRED_ENV, TRUST_PROXY: value });
+
+    expect(env.TRUST_PROXY).toEqual(trusted);
+  });
+
+  it.for(['', '   '])('treats TRUST_PROXY %j as not configured', (value) => {
+    const env = envSchema.parse({ ...REQUIRED_ENV, TRUST_PROXY: value });
+
+    expect(env.TRUST_PROXY).toBe(0);
+  });
+
+  it('keeps an empty TRUST_PROXY switched off in the config service', async () => {
+    vi.stubEnv('TRUST_PROXY', '');
+
+    const moduleRef = await Test.createTestingModule({
+      imports: [ConfigModule.forRoot(configModuleOptions([]))],
+    }).compile();
+
+    expect(moduleRef.get<ConfigService<Env, true>>(ConfigService).get('TRUST_PROXY')).toBe(0);
+  });
+
+  it.for([
+    'true',
+    'false',
+    '*',
+    'all',
+    '-1',
+    '1.5',
+    '10.0.0.0/0',
+    '10.0.0.0/33',
+    'fd00::/129',
+    '10.0.0.1/8/8',
+    '10.0.0.256',
+    'loopback,',
+    'loopback, proxy.example.test',
+  ])('refuses TRUST_PROXY %j', (value) => {
+    const result = envSchema.safeParse({ ...REQUIRED_ENV, TRUST_PROXY: value });
+
+    expect(result.error?.issues.map(({ path, message }) => ({ path, message }))).toEqual([
+      {
+        path: ['TRUST_PROXY'],
+        message:
+          'must be a hop count or a comma-separated list of IP addresses, CIDR ranges, loopback, linklocal or uniquelocal',
+      },
+    ]);
+  });
+
+  it('refuses to start with an unrestricted TRUST_PROXY', async () => {
+    vi.stubEnv('TRUST_PROXY', 'true');
+
+    await expect(ConfigModule.forRoot(configModuleOptions([]))).rejects.toThrow(
+      'Config validation error: TRUST_PROXY: must be a hop count or a comma-separated list',
+    );
+  });
+
   it('refuses a rate limit that is not a positive integer', () => {
     const result = envSchema.safeParse({
       ...REQUIRED_ENV,
@@ -169,6 +234,7 @@ describe('config validation', () => {
       JWT_ACCESS_SECRET,
       AUTH_RATE_LIMIT_MAX: 10,
       AUTH_RATE_LIMIT_WINDOW_SECONDS: 60,
+      TRUST_PROXY: 0,
     });
   });
 });
