@@ -74,6 +74,30 @@ describe('defineDomainEvent', () => {
     expect(Object.isFrozen(shelf.bookIds)).toBe(false);
   });
 
+  test('rejects fields the copy would drop', () => {
+    const Anything = defineDomainEvent<object>('AnythingHappened', 1);
+    const hidden = Object.defineProperty({}, 'bookId', { value: 'book-1', enumerable: false });
+
+    expect(() => Anything.create(hidden)).toThrow(
+      'Domain event payloads must not contain non-enumerable or symbol fields.',
+    );
+    expect(() => Anything.create({ [Symbol('bookId')]: 'book-1' })).toThrow(
+      'Domain event payloads must not contain non-enumerable or symbol fields.',
+    );
+  });
+
+  test('visits a shared subtree once', () => {
+    const Anything = defineDomainEvent<object>('AnythingHappened', 1);
+    let node: Record<string, unknown> = { bookId: 'book-1' };
+    for (let level = 0; level < 40; level += 1) {
+      node = { left: node, right: node };
+    }
+
+    const event = Anything.create(node);
+
+    expect(Object.isFrozen(event.payload)).toBe(true);
+  });
+
   test('rejects a cyclic payload', () => {
     const Anything = defineDomainEvent<object>('AnythingHappened', 1);
     const payload: Record<string, unknown> = { bookId: 'book-1' };
