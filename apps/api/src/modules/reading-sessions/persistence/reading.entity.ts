@@ -5,6 +5,7 @@ import { Check, Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
   unique: true,
   where: '"finished_at" IS NULL',
 })
+@Index('readings_user_id_idx', ['userId'])
 @Check('readings_finished_at_check', '"finished_at" >= "started_at"')
 export class ReadingEntity {
   @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'readings_pkey' })

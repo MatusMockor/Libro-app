@@ -21,6 +21,9 @@ export class CreateReadingSchema1793221911430 implements MigrationInterface {
             WHERE "finished_at" IS NULL
         `);
     await queryRunner.query(`
+            CREATE INDEX "readings_user_id_idx" ON "reading"."readings" ("user_id")
+        `);
+    await queryRunner.query(`
             CREATE TABLE "reading"."sessions" (
                 "id" uuid NOT NULL DEFAULT gen_random_uuid(),
                 "reading_id" uuid NOT NULL,
@@ -124,6 +127,9 @@ export class CreateReadingSchema1793221911430 implements MigrationInterface {
         `);
     await queryRunner.query(`
             DROP TABLE "reading"."sessions"
+        `);
+    await queryRunner.query(`
+            DROP INDEX "reading"."readings_user_id_idx"
         `);
     await queryRunner.query(`
             DROP INDEX "reading"."readings_unfinished_user_id_work_id_key"
