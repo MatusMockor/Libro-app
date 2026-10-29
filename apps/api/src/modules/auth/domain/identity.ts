@@ -8,8 +8,10 @@ export interface ProviderIdentity {
 
 export interface IdentityLink extends ProviderIdentity {
   readonly email: string;
+  readonly mayLinkExistingAccount: boolean;
 }
 
 export type IdentityLinkResult =
   | { readonly kind: 'signed_in' | 'linked' | 'created'; readonly user: User }
-  | { readonly kind: 'conflict' };
+  | { readonly kind: 'conflict' }
+  | { readonly kind: 'existing_account' };

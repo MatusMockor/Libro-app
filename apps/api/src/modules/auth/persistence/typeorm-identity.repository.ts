@@ -37,6 +37,8 @@ const USER_LOOKUP_ATTEMPTS = 3;
 
 const CONFLICT: IdentityLinkResult = { kind: 'conflict' };
 
+const EXISTING_ACCOUNT: IdentityLinkResult = { kind: 'existing_account' };
+
 interface UserForEmail {
   readonly user: User;
   readonly created: boolean;
@@ -72,6 +74,10 @@ export class TypeOrmIdentityRepository implements IdentityRepository {
       const account = await userForEmail(manager, link.email);
       if (!account) {
         return CONFLICT;
+      }
+
+      if (!account.created && !link.mayLinkExistingAccount) {
+        return EXISTING_ACCOUNT;
       }
 
       const [identity] = await manager.query<{ id: string }[]>(INSERT_IDENTITY, [

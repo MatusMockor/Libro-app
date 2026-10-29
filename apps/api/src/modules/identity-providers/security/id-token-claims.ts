@@ -15,6 +15,7 @@ export const idTokenClaimsSchema = z.object({
   nonce: z.string().min(1),
   email: z.unknown().optional(),
   email_verified: z.unknown().optional(),
+  hd: z.unknown().optional(),
 });
 
 export type IdTokenClaims = z.infer<typeof idTokenClaimsSchema>;

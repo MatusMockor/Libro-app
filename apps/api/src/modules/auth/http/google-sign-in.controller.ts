@@ -42,7 +42,7 @@ export class GoogleSignInController {
   @HttpCode(HttpStatus.OK)
   @ApiOkResponse({
     description:
-      'Signed in with a Google ID token: the account of the Google identity, else the account with the same verified email (linked), else a new account. An invalid, expired or foreign token or an unknown, expired or used nonce answers 401 invalid_identity_token, an unverified email 403 identity_email_not_verified, an email account already linked to another Google account 409 identity_conflict, Google sign-in not set up 503 identity_provider_not_configured, Google keys unreachable 503 identity_provider_unavailable, too many attempts 429 too_many_requests',
+      'Signed in with a Google ID token: the account of the Google identity, else the account with the same email (linked only when Google is authoritative for it: a gmail.com address or a Workspace account whose hd matches the email domain), else a new account. An invalid, expired or foreign token or an unknown, expired or used nonce answers 401 invalid_identity_token, an unverified email 403 identity_email_not_verified, an existing account with an email Google is not authoritative for 409 email_account_exists, an email account already linked to another Google account 409 identity_conflict, Google sign-in not set up 503 identity_provider_not_configured, Google keys unreachable 503 identity_provider_unavailable, too many attempts 429 too_many_requests',
     standardSchema: authSessionSchema,
   })
   async signIn(

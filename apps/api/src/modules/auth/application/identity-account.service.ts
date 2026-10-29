@@ -4,6 +4,7 @@ import type { VerifiedIdentity } from '../../identity-providers/index.js';
 import { normaliseEmail } from '../domain/email.js';
 import type { User } from '../domain/user.js';
 import { UserRegistered } from '../events/user-registered.event.js';
+import { EmailAccountExistsException } from './email-account-exists.exception.js';
 import { IdentityConflictException } from './identity-conflict.exception.js';
 import { IdentityEmailNotVerifiedException } from './identity-email-not-verified.exception.js';
 import { IDENTITY_REPOSITORY, type IdentityRepository } from './identity-repository.js';
@@ -26,9 +27,14 @@ export class IdentityAccountService {
       provider,
       subject,
       email: verifiedEmail(identity),
+      mayLinkExistingAccount: identity.emailAuthoritative,
     });
     if (result.kind === 'conflict') {
       throw new IdentityConflictException();
+    }
+
+    if (result.kind === 'existing_account') {
+      throw new EmailAccountExistsException();
     }
 
     if (result.kind === 'created') {

@@ -29,6 +29,8 @@ const INVALID_IDENTITY_TOKEN = {
   code: 'invalid_identity_token',
 };
 
+const WORKSPACE_EMAIL = 'ann@libro.example.test';
+
 const SECONDS_PER_DAY = 24 * 60 * 60;
 const SESSION_LIFETIME_SECONDS = 30 * SECONDS_PER_DAY;
 
@@ -80,7 +82,7 @@ describe('POST /v1/auth/google', () => {
       google,
       dataSource,
     }) => {
-      const session = (await google.signIn({ email: '  Ann.Reader@Gmail.TEST ' }))
+      const session = (await google.signIn({ email: '  Ann.Reader@Gmail.COM ' }))
         .body as AuthSessionResponse;
 
       expect(await storedUsers(dataSource)).toStrictEqual([
@@ -89,6 +91,22 @@ describe('POST /v1/auth/google', () => {
       expect(await storedIdentities(dataSource)).toStrictEqual([
         { provider: 'google', subject: GOOGLE_SUBJECT, userId: session.user.id },
       ]);
+    });
+
+    test('creates a new user for a verified email Google is not authoritative for', async ({
+      google,
+      dataSource,
+      recorder,
+    }) => {
+      const response = await google.signIn({ email: WORKSPACE_EMAIL });
+      const session = response.body as AuthSessionResponse;
+
+      expect(response.status).toBe(200);
+      expect(session.user.email).toBe(WORKSPACE_EMAIL);
+      expect(await storedIdentities(dataSource)).toStrictEqual([
+        { provider: 'google', subject: GOOGLE_SUBJECT, userId: session.user.id },
+      ]);
+      expect(recorder.all()).toHaveLength(1);
     });
 
     test('publishes UserRegistered once with only the user id', async ({ google, recorder }) => {
@@ -154,6 +172,25 @@ describe('POST /v1/auth/google', () => {
   });
 
   describe('a known Google identity', () => {
+    test('signs in by subject with an email Google is not authoritative for', async ({
+      google,
+      factories,
+    }) => {
+      const user = await factories
+        .get<UserEntity, UserFactoryMeta>(UserEntity)
+        .setMeta({ email: WORKSPACE_EMAIL })
+        .save();
+      await factories
+        .get<IdentityEntity, IdentityFactoryMeta>(IdentityEntity)
+        .setMeta({ userId: user.id, subject: GOOGLE_SUBJECT })
+        .save();
+
+      const response = await google.signIn({ email: WORKSPACE_EMAIL });
+
+      expect(response.status).toBe(200);
+      expect((response.body as AuthSessionResponse).user.id).toBe(user.id);
+    });
+
     test('signs in its user by subject and keeps the stored email', async ({
       google,
       factories,
@@ -169,7 +206,7 @@ describe('POST /v1/auth/google', () => {
         .setMeta({ userId: user.id, subject: GOOGLE_SUBJECT })
         .save();
 
-      const response = await google.signIn({ email: 'someone.else@gmail.test' });
+      const response = await google.signIn({ email: 'someone.else@example.test' });
 
       expect(response.status).toBe(200);
       expect((response.body as AuthSessionResponse).user).toStrictEqual({
@@ -198,7 +235,7 @@ describe('POST /v1/auth/google', () => {
   });
 
   describe('an existing account with the same email', () => {
-    test('links the Google identity to it and keeps the password working', async ({
+    test('links a gmail.com identity to it and keeps the password working', async ({
       http,
       google,
       signIn,
@@ -207,7 +244,7 @@ describe('POST /v1/auth/google', () => {
     }) => {
       const user = await signIn({ email: GOOGLE_EMAIL });
 
-      const response = await google.signIn({ email: 'ANN.Reader@gmail.test' });
+      const response = await google.signIn({ email: 'ANN.Reader@GMAIL.com' });
       const login = await http
         .post('/v1/auth/login')
         .send({ email: GOOGLE_EMAIL, password: FACTORY_USER_PASSWORD });
@@ -224,6 +261,64 @@ describe('POST /v1/auth/google', () => {
       expect(login.status).toBe(200);
       expect((login.body as AuthSessionResponse).user.id).toBe(user.id);
     });
+
+    test('links a Workspace identity whose hd matches the email domain', async ({
+      google,
+      signIn,
+      dataSource,
+    }) => {
+      const user = await signIn({ email: WORKSPACE_EMAIL });
+
+      const response = await google.signIn({ email: WORKSPACE_EMAIL, hd: 'Libro.Example.TEST' });
+
+      expect(response.status).toBe(200);
+      expect((response.body as AuthSessionResponse).user.id).toBe(user.id);
+      expect(await storedIdentities(dataSource)).toStrictEqual([
+        { provider: 'google', subject: GOOGLE_SUBJECT, userId: user.id },
+      ]);
+    });
+
+    test.for([
+      { case: 'an email outside gmail.com without hd', claims: { email: WORKSPACE_EMAIL } },
+      {
+        case: 'an hd that differs from the email domain',
+        claims: { email: WORKSPACE_EMAIL, hd: 'other.example.test' },
+      },
+      { case: 'an empty hd', claims: { email: WORKSPACE_EMAIL, hd: '' } },
+      { case: 'a non-string hd', claims: { email: WORKSPACE_EMAIL, hd: 42 } },
+      {
+        case: 'a gmail.com lookalike domain',
+        claims: { email: 'ann@gmail.com.example.test', hd: undefined },
+        email: 'ann@gmail.com.example.test',
+      },
+    ])(
+      'answers 409 email_account_exists for $case and keeps the password account',
+      async (
+        { claims, email = WORKSPACE_EMAIL },
+        { http, google, signIn, dataSource, recorder },
+      ) => {
+        const user = await signIn({ email });
+
+        const response = await google.signIn(claims);
+        const login = await http
+          .post('/v1/auth/login')
+          .send({ email, password: FACTORY_USER_PASSWORD });
+
+        expect(response.status).toBe(409);
+        expect(response.body).toStrictEqual({
+          type: 'about:blank',
+          title: 'Conflict',
+          status: 409,
+          detail: 'An account with this email already exists. Sign in with the password.',
+          instance: GOOGLE_SIGN_IN_ROUTE,
+          code: 'email_account_exists',
+        });
+        expect((await storedUsers(dataSource)).map(({ id }) => id)).toEqual([user.id]);
+        expect(await storedIdentities(dataSource)).toEqual([]);
+        expect(recorder.all()).toEqual([]);
+        expect(login.status).toBe(200);
+      },
+    );
 
     test('answers 409 identity_conflict when it is linked to another Google account', async ({
       google,

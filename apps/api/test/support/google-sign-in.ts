@@ -18,7 +18,7 @@ export const GOOGLE_NONCE_ROUTE = '/v1/auth/google/nonce';
 
 export const GOOGLE_KEY_ID = 'test-google-key-1';
 export const GOOGLE_SUBJECT = '110169484474386276334';
-export const GOOGLE_EMAIL = 'ann.reader@gmail.test';
+export const GOOGLE_EMAIL = 'ann.reader@gmail.com';
 
 const SECONDS_PER_HOUR = 3_600;
 const MILLISECONDS_PER_SECOND = 1_000;

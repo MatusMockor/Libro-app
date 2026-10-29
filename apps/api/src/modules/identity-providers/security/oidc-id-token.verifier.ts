@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common';
 import { errors, jwtVerify, type JWTPayload } from 'jose';
 import { IdentityProviderUnavailableException } from '../application/identity-provider-unavailable.exception.js';
 import { InvalidIdentityTokenException } from '../application/invalid-identity-token.exception.js';
+import type { EmailClaims } from '../domain/email-claims.js';
 import type { VerifiedIdentity } from '../domain/verified-identity.js';
 import {
   ID_TOKEN_ALGORITHMS,
@@ -40,11 +41,18 @@ export class OidcIdTokenVerifier {
       return this.reject(problem);
     }
 
+    const emailClaims: EmailClaims = {
+      email: optionalString(claims.data.email),
+      emailVerified: claims.data.email_verified === true,
+      hostedDomain: optionalString(claims.data.hd),
+    };
+
     return {
       provider: this.config.provider,
       subject: claims.data.sub,
-      email: typeof claims.data.email === 'string' ? claims.data.email : undefined,
-      emailVerified: claims.data.email_verified === true,
+      email: emailClaims.email,
+      emailVerified: emailClaims.emailVerified,
+      emailAuthoritative: this.config.isEmailAuthoritative(emailClaims),
       nonce: claims.data.nonce,
     };
   }
@@ -79,6 +87,10 @@ export class OidcIdTokenVerifier {
     this.logger.debug(`Rejected ${this.config.provider} ID token: ${reason}`);
     throw new InvalidIdentityTokenException();
   }
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
 }
 
 function isTokenError(error: unknown): error is errors.JOSEError {
