@@ -9,4 +9,5 @@ export interface FinishedTrees {
 export interface FinishedTreeRepository {
   record(trees: FinishedTrees): Promise<void>;
   storedVersions(userId: string, readingIds: readonly string[]): Promise<Map<string, number>>;
+  deleteAllOf(userId: string): Promise<void>;
 }

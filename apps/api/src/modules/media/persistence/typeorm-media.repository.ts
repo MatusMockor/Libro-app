@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, type EntityManager } from 'typeorm';
 import { MediaLimitReachedException } from '../application/media-limit-reached.exception.js';
 import type { MediaRepository } from '../application/media-repository.js';
 import type { MediaVariant, NewMedia, StoredMedia } from '../domain/media.js';
@@ -69,6 +69,23 @@ const DELETE_OWNED_FILE = `
   DELETE FROM media.files WHERE owner_id = $1 AND id = $2 RETURNING id
 `;
 
+const INSERT_PENDING_FILE_DELETIONS = `
+  INSERT INTO media.pending_file_deletions (storage_key)
+  SELECT unnest($1::text[])
+  ON CONFLICT (storage_key) DO NOTHING
+`;
+
+const DELETE_ALL_OWNED_VARIANTS = `
+  DELETE FROM media.file_variants AS variant
+  USING media.files AS file
+  WHERE variant.file_id = file.id AND file.owner_id = $1
+  RETURNING variant.storage_key AS "storageKey"
+`;
+
+const DELETE_ALL_OWNED_FILES = `
+  DELETE FROM media.files WHERE owner_id = $1
+`;
+
 @Injectable()
 export class TypeOrmMediaRepository implements MediaRepository {
   constructor(
@@ -123,13 +140,41 @@ export class TypeOrmMediaRepository implements MediaRepository {
         ownerId,
         mediaId,
       ]);
+      if (deleted !== 1) {
+        return undefined;
+      }
 
-      return deleted === 1 ? variants.map(({ storageKey }) => storageKey) : undefined;
+      return pendingDeletionOf(manager, variants);
+    });
+  }
+
+  deleteAllOwned(ownerId: string): Promise<readonly string[]> {
+    return this.files.manager.transaction(async (manager) => {
+      await manager.query(LOCK_OWNER, [ownerId]);
+      const [variants] = await manager.query<DeleteResult<{ storageKey: string }>>(
+        DELETE_ALL_OWNED_VARIANTS,
+        [ownerId],
+      );
+      await manager.query(DELETE_ALL_OWNED_FILES, [ownerId]);
+
+      return pendingDeletionOf(manager, variants);
     });
   }
 }
 
 type DeleteResult<TRow> = [TRow[], number];
+
+async function pendingDeletionOf(
+  manager: EntityManager,
+  variants: readonly { storageKey: string }[],
+): Promise<string[]> {
+  const storageKeys = variants.map(({ storageKey }) => storageKey);
+  if (storageKeys.length > 0) {
+    await manager.query(INSERT_PENDING_FILE_DELETIONS, [storageKeys]);
+  }
+
+  return storageKeys;
+}
 
 function variantColumns(variants: readonly MediaVariant[]): unknown[][] {
   return [

@@ -3,18 +3,24 @@ import { ConfigService } from '@nestjs/config';
 import type { Env } from '../../config/env.schema.js';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DeleteMediaService } from './application/delete-media.service.js';
+import { EraseMediaHandler } from './application/erase-media.handler.js';
 import { IMAGE_PROCESSOR } from './application/image-processor.js';
 import { InProcessUploadAdmission } from './application/in-process-upload-admission.js';
 import { MediaFileCleanupService } from './application/media-file-cleanup.service.js';
+import { MediaFileDeletionService } from './application/media-file-deletion.service.js';
 import { MediaLibraryService } from './application/media-library.service.js';
 import { MEDIA_REPOSITORY } from './application/media-repository.js';
 import { MediaUrlsService } from './application/media-urls.service.js';
+import { PENDING_FILE_DELETION_REPOSITORY } from './application/pending-file-deletion-repository.js';
 import { UPLOAD_ADMISSION } from './application/upload-admission.js';
 import { UploadMediaService } from './application/upload-media.service.js';
 import { MediaController } from './http/media.controller.js';
+import { MEDIA_FILE_DELETIONS } from './media-file-deletions.js';
 import { MEDIA_LIBRARY } from './media-library.js';
 import { MediaFileVariantEntity } from './persistence/media-file-variant.entity.js';
 import { MediaFileEntity } from './persistence/media-file.entity.js';
+import { PendingFileDeletionEntity } from './persistence/pending-file-deletion.entity.js';
+import { TypeOrmPendingFileDeletionRepository } from './persistence/typeorm-pending-file-deletion.repository.js';
 import { TypeOrmMediaRepository } from './persistence/typeorm-media.repository.js';
 import { SharpImageProcessor } from './processing/sharp-image.processor.js';
 import { FileStorageModule } from './storage/file-storage.module.js';
@@ -25,7 +31,7 @@ function uploadAdmission(config: ConfigService<Env, true>): InProcessUploadAdmis
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([MediaFileEntity, MediaFileVariantEntity]),
+    TypeOrmModule.forFeature([MediaFileEntity, MediaFileVariantEntity, PendingFileDeletionEntity]),
     FileStorageModule.forConfiguredDriver(),
   ],
   controllers: [MediaController],
@@ -35,11 +41,15 @@ function uploadAdmission(config: ConfigService<Env, true>): InProcessUploadAdmis
     MediaLibraryService,
     MediaUrlsService,
     MediaFileCleanupService,
+    MediaFileDeletionService,
+    EraseMediaHandler,
     { provide: UPLOAD_ADMISSION, inject: [ConfigService], useFactory: uploadAdmission },
     { provide: IMAGE_PROCESSOR, useClass: SharpImageProcessor },
     { provide: MEDIA_REPOSITORY, useClass: TypeOrmMediaRepository },
+    { provide: PENDING_FILE_DELETION_REPOSITORY, useClass: TypeOrmPendingFileDeletionRepository },
     { provide: MEDIA_LIBRARY, useExisting: MediaLibraryService },
+    { provide: MEDIA_FILE_DELETIONS, useExisting: MediaFileDeletionService },
   ],
-  exports: [MEDIA_LIBRARY],
+  exports: [MEDIA_LIBRARY, MEDIA_FILE_DELETIONS],
 })
 export class MediaModule {}

@@ -27,6 +27,14 @@ const FINISH_READING = `
   RETURNING id, work_id AS "workId", started_at AS "startedAt", finished_at AS "finishedAt"
 `;
 
+const DELETE_READINGS_OF_USER = `
+  DELETE FROM reading.readings WHERE user_id = $1
+`;
+
+const DELETE_SESSIONS_OF_USER = `
+  DELETE FROM reading.sessions WHERE user_id = $1
+`;
+
 @Injectable()
 export class TypeOrmReadingRepository implements ReadingRepository {
   constructor(
@@ -55,6 +63,13 @@ export class TypeOrmReadingRepository implements ReadingRepository {
       const [[reading]] = await manager.query<[[Reading], number]>(FINISH_READING, [readingId]);
 
       return { kind: 'finished', reading };
+    });
+  }
+
+  async deleteAllOf(userId: string): Promise<void> {
+    await this.readings.manager.transaction(async (manager) => {
+      await manager.query(DELETE_READINGS_OF_USER, [userId]);
+      await manager.query(DELETE_SESSIONS_OF_USER, [userId]);
     });
   }
 }

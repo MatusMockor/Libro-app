@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { BooksModule } from '../books/index.js';
 import { MediaModule } from '../media/index.js';
 import { CreateProfileOnRegistrationHandler } from './application/create-profile-on-registration.handler.js';
+import { EraseProfileHandler } from './application/erase-profile.handler.js';
 import { FOLLOW_REPOSITORY } from './application/follow-repository.js';
 import { FollowService } from './application/follow.service.js';
 import { HANDLE_SUFFIX_SOURCE } from './application/handle-suffix-source.js';
@@ -39,6 +40,7 @@ import { SOCIAL_GRAPH } from './social-graph.js';
   providers: [
     ProfileProvisioningService,
     CreateProfileOnRegistrationHandler,
+    EraseProfileHandler,
     ProfileAssemblerService,
     ProfileReferencesService,
     OwnProfileService,

@@ -23,7 +23,8 @@
     "db:migration:generate": "pnpm --filter @libro/api run migration:generate",
     "db:migration:create": "pnpm --filter @libro/api run migration:create",
     "db:migration:check": "pnpm --filter @libro/api run migration:check",
-    "db:seed": "pnpm --filter @libro/api run seed:run"
+    "db:seed": "pnpm --filter @libro/api run seed:run",
+    "accounts:purge-deleted": "pnpm --filter @libro/api run accounts:purge-deleted"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

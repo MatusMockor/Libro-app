@@ -8,4 +8,5 @@ export interface MediaRepository {
   findOwned(ownerId: string, mediaId: string): Promise<StoredMedia | undefined>;
   findMany(mediaIds: readonly string[]): Promise<StoredMedia[]>;
   deleteOwned(ownerId: string, mediaId: string): Promise<readonly string[] | undefined>;
+  deleteAllOwned(ownerId: string): Promise<readonly string[]>;
 }

@@ -54,11 +54,14 @@ export const registerSchema = z
   .object({ email: emailSchema, password: newPasswordSchema })
   .meta({ id: 'Register' });
 
+export const currentPasswordSchema = z
+  .string()
+  .min(1)
+  .max(LOGIN_PASSWORD_MAX_LENGTH)
+  .overwrite(normalisePassword);
+
 export const loginSchema = z
-  .object({
-    email: emailSchema,
-    password: z.string().min(1).max(LOGIN_PASSWORD_MAX_LENGTH).overwrite(normalisePassword),
-  })
+  .object({ email: emailSchema, password: currentPasswordSchema })
   .meta({ id: 'Login' });
 
 export type RegisterRequest = z.infer<typeof registerSchema>;

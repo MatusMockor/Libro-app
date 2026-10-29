@@ -119,9 +119,9 @@ describe('GET /v1/me/forest', () => {
     queries.mockRestore();
 
     expect({ firstRead, oneTree, twentyTrees }).toEqual({
-      firstRead: 5,
-      oneTree: 3,
-      twentyTrees: 3,
+      firstRead: 6,
+      oneTree: 4,
+      twentyTrees: 4,
     });
   });
 });

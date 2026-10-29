@@ -106,6 +106,7 @@ Scripts (run from the repository root, against `DATABASE_URL` from the root `.en
 | `pnpm db:migration:create <Name>`   | Creates an empty migration in the same folder (for data migrations or hand-written SQL)             |
 | `pnpm db:migration:check`           | Fails when the entities differ from the migrated database, i.e. a migration is missing (used in CI) |
 | `pnpm db:seed`                      | Runs all seeders (`typeorm-extension`)                                                              |
+| `pnpm accounts:purge-deleted`       | Replays `UserDeleted`, retries pending photo deletions, forgets old tombstones (run daily)          |
 
 `generate` and `create` format the new file with Prettier. Review a generated migration before committing it: every migration needs a working `down()` that fully reverts `up()`.
 

@@ -26,6 +26,7 @@ const REGISTER = '/v1/auth/register';
 const LOGIN = '/v1/auth/login';
 const REFRESH = '/v1/auth/refresh';
 const LOGOUT = '/v1/auth/logout';
+const DELETION = '/v1/me/deletion';
 
 function tooManyRequests(instance: string) {
   return {
@@ -123,6 +124,29 @@ describe('auth rate limit', () => {
     expect(attempts.map(({ status }) => status)).toEqual([401, 401]);
     expect(limited.status).toBe(429);
     expect(limited.body).toStrictEqual(tooManyRequests(GOOGLE_SIGN_IN_ROUTE));
+  });
+
+  test('counts rejected account deletions and answers 429 once the limit is exceeded', async ({
+    http,
+    signIn,
+    dataSource,
+  }) => {
+    const user = await signIn();
+    const deletion = (password: string) =>
+      http.post(DELETION).set('Authorization', user.authorization).send({ password });
+
+    const attempts = [await deletion('not the password'), await deletion('not the password')];
+    const limited = await deletion(FACTORY_USER_PASSWORD);
+
+    expect(attempts.map(({ status }) => status)).toEqual([401, 401]);
+    expect(limited.status).toBe(429);
+    expect(limited.headers['retry-after']).toMatch(/^\d+$/);
+    expect(limited.body).toStrictEqual(tooManyRequests(DELETION));
+    expect(
+      await dataSource.query<{ id: string }[]>('SELECT id FROM auth.users WHERE id = $1', [
+        user.id,
+      ]),
+    ).toEqual([{ id: user.id }]);
   });
 
   test('limits register and login separately', async ({ http, signIn }) => {
