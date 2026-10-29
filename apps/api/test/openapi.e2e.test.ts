@@ -218,6 +218,62 @@ describe('OpenAPI', () => {
       'activeSeconds',
       'checkpoints',
       'markedParts',
+      'groupHostSessionId',
+    ]);
+  });
+
+  test('describes the reading group and privacy endpoints with their zod schemas', async ({
+    http,
+  }) => {
+    const document = (await http.get('/docs-json')).body as OpenApiDocument;
+    const responseSchema = (path: string, method: string, status: string) =>
+      document.paths[path]?.[method]?.responses[status]?.content?.['application/json']?.schema;
+    const requestSchema = (path: string, method: string) =>
+      document.paths[path]?.[method]?.requestBody?.content['application/json']?.schema;
+    const queryNames = (path: string) =>
+      document.paths[path]?.get?.parameters
+        ?.filter((parameter) => parameter.in === 'query')
+        .map(({ name }) => name);
+
+    expect(responseSchema('/v1/reading-sessions/live', 'get', '200')).toEqual({
+      $ref: '#/components/schemas/LiveReadingSessionPage',
+    });
+    expect(queryNames('/v1/reading-sessions/live')).toEqual(['limit', 'offset']);
+    expect(responseSchema('/v1/reading-sessions/{sessionId}/group', 'get', '200')).toEqual({
+      $ref: '#/components/schemas/ReadingGroup',
+    });
+    expect(requestSchema('/v1/reading-sessions/{sessionId}/join', 'post')).toEqual({
+      $ref: '#/components/schemas/JoinReadingSession',
+    });
+    expect(responseSchema('/v1/reading-sessions/{sessionId}/join', 'post', '201')).toEqual({
+      $ref: '#/components/schemas/ReadingSession',
+    });
+    expect(responseSchema('/v1/reading-sessions/{sessionId}/leave', 'post', '200')).toEqual({
+      $ref: '#/components/schemas/ReadingSession',
+    });
+    expect(
+      document.paths['/v1/reading-sessions/{hostSessionId}/participants/{participantSessionId}']
+        ?.delete?.responses,
+    ).toHaveProperty('204');
+    expect(responseSchema('/v1/me/reading-privacy', 'get', '200')).toEqual({
+      $ref: '#/components/schemas/ReadingPrivacy',
+    });
+    expect(requestSchema('/v1/me/reading-privacy', 'put')).toEqual({
+      $ref: '#/components/schemas/UpdateReadingPrivacy',
+    });
+    expect(responseSchema('/v1/me/reading-privacy', 'put', '200')).toEqual({
+      $ref: '#/components/schemas/ReadingPrivacy',
+    });
+    expect(Object.keys(document.components.schemas.LiveReadingSession?.properties ?? {})).toEqual([
+      'sessionId',
+      'place',
+      'status',
+      'startedAt',
+      'progressPage',
+      'host',
+      'book',
+      'participantCount',
+      'joinedByMe',
     ]);
   });
 
@@ -491,6 +547,16 @@ describe('OpenAPI', () => {
         operation('/v1/books', 'get'),
         operation('/v1/books/{workId}', 'get'),
         operation('/v1/reading-sessions', 'post'),
+        operation('/v1/reading-sessions/live', 'get'),
+        operation('/v1/reading-sessions/{sessionId}/group', 'get'),
+        operation('/v1/reading-sessions/{sessionId}/join', 'post'),
+        operation('/v1/reading-sessions/{sessionId}/leave', 'post'),
+        operation(
+          '/v1/reading-sessions/{hostSessionId}/participants/{participantSessionId}',
+          'delete',
+        ),
+        operation('/v1/me/reading-privacy', 'get'),
+        operation('/v1/me/reading-privacy', 'put'),
         operation('/v1/readings/{readingId}/finish', 'post'),
         operation('/v1/readings/{readingId}/tree', 'get'),
         operation('/v1/me/forest', 'get'),
@@ -527,7 +593,7 @@ describe('OpenAPI', () => {
         operation('/v1/books/{workId}/reviews', 'get'),
         operation('/v1/probe/protected', 'get'),
       ].map((protectedOperation) => protectedOperation?.security),
-    ).toEqual(Array.from({ length: 40 }, () => undefined));
+    ).toEqual(Array.from({ length: 47 }, () => undefined));
     expect(
       [
         operation('/health', 'get'),

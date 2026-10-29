@@ -41,7 +41,18 @@ const SELECT_ENDED_SESSIONS = `
             FROM reading.marked_parts AS part
             WHERE part.session_id = session.id),
            '[]'
-         ) AS "markedParts"
+         ) AS "markedParts",
+         array_remove(
+           ARRAY[
+             (SELECT membership.host_session_id
+              FROM reading.session_participants AS membership
+              WHERE membership.participant_session_id = session.id),
+             (SELECT session.id
+              WHERE EXISTS (SELECT 1 FROM reading.session_participants AS hosted
+                            WHERE hosted.host_session_id = session.id))
+           ],
+           NULL
+         )::text[] AS "groupHostSessionIds"
   FROM reading.sessions AS session
   WHERE session.reading_id = ANY ($1::uuid[]) AND session.status = 'ended'
   ORDER BY session.started_at, session.id
@@ -87,10 +98,11 @@ export class TypeOrmReadingHistoryRepository implements ReadingHistory {
       ...reading,
       sessions: rows
         .filter((row) => row.readingId === reading.id)
-        .map(({ activeSeconds, checkpoints, markedParts }) => ({
+        .map(({ activeSeconds, checkpoints, markedParts, groupHostSessionIds }) => ({
           activeSeconds,
           checkpoints,
           markedParts,
+          groupHostSessionIds,
         })),
     }));
   }

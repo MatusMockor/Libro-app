@@ -1,5 +1,13 @@
-import { computeTree, type TreeEngineVersion, type TreeV1 } from '@libro/tree-engine';
-import type { ReadingWithSessions } from '../../reading-sessions/index.js';
+import {
+  computeTree,
+  type DecorationInputV1,
+  type SessionInputV1,
+  type TreeEngineVersion,
+  type TreeV1,
+} from '@libro/tree-engine';
+import type { EndedSession, ReadingWithSessions } from '../../reading-sessions/index.js';
+
+const GROUP_READING_ID_PREFIX = 'group:';
 
 export const TREE_PAGE_MAX_OFFSET = 1000;
 
@@ -29,8 +37,28 @@ export function growReadingTree(
     workId,
     finishedAt,
     tree: computeTree(
-      { seed: id, finished: finishedAt !== null, sessions, decorations: [] },
+      {
+        seed: id,
+        finished: finishedAt !== null,
+        sessions: sessions.map(toSessionInput),
+        decorations: groupReadingDecorations(sessions),
+      },
       version,
     ),
   };
+}
+
+function toSessionInput({ activeSeconds, checkpoints, markedParts }: EndedSession): SessionInputV1 {
+  return { activeSeconds, checkpoints, markedParts };
+}
+
+function groupReadingDecorations(sessions: readonly EndedSession[]): DecorationInputV1[] {
+  const hostSessionIds = new Set(
+    sessions.flatMap(({ groupHostSessionIds }) => groupHostSessionIds),
+  );
+
+  return [...hostSessionIds].map((hostSessionId) => ({
+    id: `${GROUP_READING_ID_PREFIX}${hostSessionId}`,
+    kind: 'group_reading',
+  }));
 }

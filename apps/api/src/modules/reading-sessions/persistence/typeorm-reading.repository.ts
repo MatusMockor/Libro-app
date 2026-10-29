@@ -35,6 +35,10 @@ const DELETE_SESSIONS_OF_USER = `
   DELETE FROM reading.sessions WHERE user_id = $1
 `;
 
+const DELETE_SHARING_SETTINGS_OF_USER = `
+  DELETE FROM reading.sharing_settings WHERE user_id = $1
+`;
+
 @Injectable()
 export class TypeOrmReadingRepository implements ReadingRepository {
   constructor(
@@ -70,6 +74,7 @@ export class TypeOrmReadingRepository implements ReadingRepository {
     await this.readings.manager.transaction(async (manager) => {
       await manager.query(DELETE_READINGS_OF_USER, [userId]);
       await manager.query(DELETE_SESSIONS_OF_USER, [userId]);
+      await manager.query(DELETE_SHARING_SETTINGS_OF_USER, [userId]);
     });
   }
 }

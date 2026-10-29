@@ -59,6 +59,7 @@ describe('POST /v1/reading-sessions', () => {
       activeSeconds: expect.any(Number) as number,
       checkpoints: [],
       markedParts: [],
+      groupHostSessionId: null,
     });
     expect(session.activeSeconds).toBeLessThanOrEqual(1);
   });

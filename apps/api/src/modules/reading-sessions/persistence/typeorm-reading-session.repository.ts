@@ -22,6 +22,7 @@ import {
 } from '../domain/reading-session.js';
 import type { TransitionRule } from '../domain/session-transition.js';
 import { ReadingSessionEntity, SESSIONS_OPEN_USER_ID_KEY } from './reading-session.entity.js';
+import { currentGroupRootOf } from './session-groups.sql.js';
 
 const UPSERT_UNFINISHED_READING = `
   INSERT INTO reading.readings (user_id, work_id, started_at)
@@ -48,7 +49,8 @@ const SELECT_SESSION = `
          floor(
            session.active_seconds
            + coalesce(extract(epoch FROM clock_timestamp() - session.active_since), 0)
-         )::int AS "activeSeconds"
+         )::int AS "activeSeconds",
+         ${currentGroupRootOf('session')} AS "groupHostSessionId"
   FROM reading.sessions AS session
   JOIN reading.readings AS reading ON reading.id = session.reading_id
   WHERE session.user_id = $1

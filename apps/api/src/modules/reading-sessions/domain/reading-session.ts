@@ -40,6 +40,7 @@ export interface ReadingSession {
   readonly startedAt: Date;
   readonly endedAt: Date | null;
   readonly activeSeconds: number;
+  readonly groupHostSessionId: string | null;
   readonly checkpoints: readonly Checkpoint[];
   readonly markedParts: readonly MarkedPart[];
 }

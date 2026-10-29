@@ -36,9 +36,11 @@ import { FollowEntity } from '../../../src/modules/profiles/persistence/follow.e
 import { ProfileEntity } from '../../../src/modules/profiles/persistence/profile.entity.js';
 import type { ReadingSessionFactoryMeta } from '../../../src/modules/reading-sessions/factories/reading-session.factory.js';
 import type { ReadingFactoryMeta } from '../../../src/modules/reading-sessions/factories/reading.factory.js';
+import type { SessionParticipantFactoryMeta } from '../../../src/modules/reading-sessions/factories/session-participant.factory.js';
 import type { ReadingSessionResponse } from '../../../src/modules/reading-sessions/http/reading-session.response.js';
 import { ReadingSessionEntity } from '../../../src/modules/reading-sessions/persistence/reading-session.entity.js';
 import { ReadingEntity } from '../../../src/modules/reading-sessions/persistence/reading.entity.js';
+import { SessionParticipantEntity } from '../../../src/modules/reading-sessions/persistence/session-participant.entity.js';
 import type { ReviewFactoryMeta } from '../../../src/modules/reviews/factories/review.factory.js';
 import { ReviewEntity } from '../../../src/modules/reviews/persistence/review.entity.js';
 import { googleSignInWith, useLocalGoogleSigningKeys } from '../../support/google-sign-in.js';
@@ -143,6 +145,27 @@ async function readBook(
   return session;
 }
 
+async function arrangeGroupReading(
+  http: Agent,
+  factories: SeederFactoryManager,
+  authorization: string,
+  hostSessionId: string,
+): Promise<void> {
+  expectStatus(
+    await as(http, authorization).put('/v1/me/reading-privacy').send({ liveSessions: 'followers' }),
+    200,
+    'reading privacy',
+  );
+  const companion = await factories
+    .get<ReadingSessionEntity, ReadingSessionFactoryMeta>(ReadingSessionEntity)
+    .setMeta({})
+    .save();
+  await factories
+    .get<SessionParticipantEntity, SessionParticipantFactoryMeta>(SessionParticipantEntity)
+    .setMeta({ hostSessionId, participantSessionId: companion.id })
+    .save();
+}
+
 async function authSessionIdsOf(dataSource: DataSource, userId: string): Promise<string[]> {
   const rows = await dataSource.query<{ id: string }[]>(
     'SELECT id FROM auth.sessions WHERE user_id = $1 ORDER BY id',
@@ -188,6 +211,7 @@ function arrangeAccountWith(
       place: 'Kaviaren Libro',
     });
     expectStatus(posted, 201, 'post');
+    await arrangeGroupReading(http, factories, user.authorization, open.id);
     await factories
       .get<IdentityEntity, IdentityFactoryMeta>(IdentityEntity)
       .setMeta({ userId: user.id })
