@@ -57,15 +57,30 @@ interface StoredPassword {
   passwordHash: string | null;
 }
 
+const GOOGLE_ONLY_USERS = 9;
+
+const PASSWORD_USERS = [
+  { email: 'password-a@example.test', passwordHash: 'a-password-hash' },
+  { email: 'password-z@example.test', passwordHash: 'z-password-hash' },
+];
+
 async function arrangePasswordAndGoogleOnlyUsers(dataSource: DataSource): Promise<void> {
   await dataSource.query(
-    `INSERT INTO auth.users (email, password_hash) VALUES
-       ('password@example.test', 'a-password-hash'),
-       ('google-only@example.test', NULL)`,
+    `INSERT INTO auth.users (email, password_hash)
+     SELECT email, password_hash FROM unnest($1::text[], $2::text[]) AS users (email, password_hash)`,
+    [
+      PASSWORD_USERS.map(({ email }) => email),
+      PASSWORD_USERS.map(({ passwordHash }) => passwordHash),
+    ],
+  );
+  await dataSource.query(
+    `INSERT INTO auth.users (email, password_hash)
+     SELECT 'google-only-' || n || '@example.test', NULL FROM generate_series(1, $1::int) AS n`,
+    [GOOGLE_ONLY_USERS],
   );
   await dataSource.query(
     `INSERT INTO auth.identities (provider, subject, user_id)
-     SELECT 'google', '110169484474386276334', id FROM auth.users WHERE email = 'google-only@example.test'`,
+     SELECT 'google', 'subject-' || email, id FROM auth.users WHERE email LIKE 'google-only-%'`,
   );
 }
 
@@ -142,18 +157,21 @@ describe('database migrations', () => {
     });
 
     await revertUntilTableIsGone(dataSource, 'auth.identities');
-    const [googleOnly, password, ...others] = await storedPasswords(dataSource);
+    const stored = await storedPasswords(dataSource);
+    const googleOnly = stored.filter(({ email }) => email.startsWith('google-only-'));
+    const googleOnlyHashes = googleOnly.map(({ passwordHash }) => passwordHash ?? '');
 
     expect(await tableExists(dataSource, 'auth.identities')).toBe(false);
     expect(await passwordHashIsNullable(dataSource)).toBe(false);
-    expect(others).toEqual([]);
-    expect(password).toStrictEqual({
-      email: 'password@example.test',
-      passwordHash: 'a-password-hash',
-    });
-    expect(googleOnly?.email).toBe('google-only@example.test');
-    expect(googleOnly?.passwordHash).toMatch(/^\$argon2id\$v=19\$m=19456,t=2,p=1\$/);
-    expect(await verify(googleOnly?.passwordHash ?? '', '')).toBe(false);
+    expect(stored.filter(({ email }) => email.startsWith('password-'))).toStrictEqual(
+      PASSWORD_USERS,
+    );
+    expect(googleOnly).toHaveLength(GOOGLE_ONLY_USERS);
+    expect(new Set(googleOnlyHashes).size).toBe(GOOGLE_ONLY_USERS);
+    for (const passwordHash of googleOnlyHashes) {
+      expect(passwordHash).toMatch(/^\$argon2id\$v=19\$m=19456,t=2,p=1\$/);
+      expect(await verify(passwordHash, '')).toBe(false);
+    }
 
     await dataSource.runMigrations();
     expect(await moduleTables(dataSource)).toEqual(MODULE_TABLES);
