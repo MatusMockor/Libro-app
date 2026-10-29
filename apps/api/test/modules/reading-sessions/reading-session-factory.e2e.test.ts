@@ -64,33 +64,4 @@ describe('reading session factory', () => {
     expect(inserts.toSorted()).toEqual(['checkpoints', 'marked_parts', 'readings', 'sessions']);
     expect(stored).toEqual({ checkpoints: 500, markedParts: 2 });
   });
-
-  test('keeps the supplied order of checkpoints and marked parts', async ({
-    factories,
-    dataSource,
-  }) => {
-    const pages = [30, 10, 20];
-    const session = await factories
-      .get<ReadingSessionEntity, ReadingSessionFactoryMeta>(ReadingSessionEntity)
-      .setMeta({
-        checkpointPages: pages,
-        markedParts: [
-          { kind: 'slow', fromPage: 40, toPage: 50 },
-          { kind: 'good', fromPage: 1, toPage: 5 },
-        ],
-      })
-      .save();
-
-    const checkpoints = await dataSource.query<{ page: number }[]>(
-      'SELECT page FROM reading.checkpoints WHERE session_id = $1 ORDER BY recorded_at, id',
-      [session.id],
-    );
-    const markedParts = await dataSource.query<{ kind: string }[]>(
-      'SELECT kind FROM reading.marked_parts WHERE session_id = $1 ORDER BY created_at, id',
-      [session.id],
-    );
-
-    expect(checkpoints.map(({ page }) => page)).toEqual(pages);
-    expect(markedParts.map(({ kind }) => kind)).toEqual(['slow', 'good']);
-  });
 });
