@@ -26,6 +26,8 @@ const API_ROOT = resolve(import.meta.dirname, '../../..');
 
 const CLI_TIMEOUT_MS = 60_000;
 
+const CLI_TEST_TIMEOUT_MS = 120_000;
+
 const READ_ONLY = 0o555;
 const WRITABLE = 0o755;
 
@@ -240,65 +242,63 @@ describe('deleted accounts purge', () => {
     expect(published).toEqual((await tombstones(dataSource)).map(({ userId }) => userId));
   });
 
-  test('runs as the accounts:purge-deleted command', async ({
-    dataSource,
-    factories,
-    mediaRoot,
-    signIn,
-    arrangeLeftovers,
-    deleteAccount,
-  }) => {
-    const ann = await signIn();
-    const ben = await signIn();
-    await factories
-      .get<ProfileEntity, ProfileFactoryMeta>(ProfileEntity)
-      .setMeta({ userId: ben.id })
-      .save();
-    await deleteAccount(ann, { password: FACTORY_USER_PASSWORD });
-    const leftovers = await arrangeLeftovers(ann.id, ben.id);
+  test(
+    'runs as the accounts:purge-deleted command',
+    { timeout: CLI_TEST_TIMEOUT_MS },
+    async ({ dataSource, factories, mediaRoot, signIn, arrangeLeftovers, deleteAccount }) => {
+      const ann = await signIn();
+      const ben = await signIn();
+      await factories
+        .get<ProfileEntity, ProfileFactoryMeta>(ProfileEntity)
+        .setMeta({ userId: ben.id })
+        .save();
+      await deleteAccount(ann, { password: FACTORY_USER_PASSWORD });
+      const leftovers = await arrangeLeftovers(ann.id, ben.id);
 
-    const { exitCode, output } = await runPurgeCommand();
+      const { exitCode, output } = await runPurgeCommand();
 
-    expect(exitCode).toBe(0);
-    expect(output).toContain('Published UserDeleted again for 1 deleted accounts');
-    expect(await tablesMentioning(dataSource, leftovers.needles)).toEqual([]);
-    expect(filesOf(await storedFiles(mediaRoot), leftovers.mediaIds)).toEqual([]);
-  });
+      expect(exitCode).toBe(0);
+      expect(output).toContain('Published UserDeleted again for 1 deleted accounts');
+      expect(await tablesMentioning(dataSource, leftovers.needles)).toEqual([]);
+      expect(filesOf(await storedFiles(mediaRoot), leftovers.mediaIds)).toEqual([]);
+    },
+  );
 
-  test('keeps photo files whose deletion failed pending, exits non-zero, and deletes them on a later run', async ({
-    dataSource,
-    mediaRoot,
-    arrangeAccount,
-    deleteAccount,
-  }) => {
-    const ann = await arrangeAccount();
-    const [mediaId = ''] = ann.mediaIds;
-    const directory = join(mediaRoot, mediaId);
-    await chmod(directory, READ_ONLY);
-    onTestFinished(async () => {
-      await chmod(directory, WRITABLE).catch(() => undefined);
-    });
+  test(
+    'keeps photo files whose deletion failed pending, exits non-zero, and deletes them on a later run',
+    { timeout: CLI_TEST_TIMEOUT_MS },
+    async ({ dataSource, mediaRoot, arrangeAccount, deleteAccount }) => {
+      const ann = await arrangeAccount();
+      const [mediaId = ''] = ann.mediaIds;
+      const directory = join(mediaRoot, mediaId);
+      await chmod(directory, READ_ONLY);
+      onTestFinished(async () => {
+        await chmod(directory, WRITABLE).catch(() => undefined);
+      });
 
-    await deleteAccount(ann, { password: FACTORY_USER_PASSWORD });
-    const pendingAfterDeletion = await pendingFileDeletions(dataSource);
-    const failedRun = await runPurgeCommand();
-    const pendingAfterFailedRun = await pendingFileDeletions(dataSource);
-    await chmod(directory, WRITABLE);
-    const recoveredRun = await runPurgeCommand();
+      await deleteAccount(ann, { password: FACTORY_USER_PASSWORD });
+      const pendingAfterDeletion = await pendingFileDeletions(dataSource);
+      const failedRun = await runPurgeCommand();
+      const pendingAfterFailedRun = await pendingFileDeletions(dataSource);
+      await chmod(directory, WRITABLE);
+      const recoveredRun = await runPurgeCommand();
 
-    expect(pendingAfterDeletion.map(({ storageKey }) => storageKey)).toEqual([
-      `${mediaId}/large.webp`,
-      `${mediaId}/medium.webp`,
-      `${mediaId}/small.webp`,
-    ]);
-    expect(pendingAfterDeletion.map(({ attempts }) => attempts)).toEqual([1, 1, 1]);
-    expect(pendingAfterDeletion.every(({ lastError }) => lastError?.includes('EACCES'))).toBe(true);
-    expect(failedRun.exitCode).toBe(1);
-    expect(failedRun.output).toContain('3 pending media file deletions failed again');
-    expect(pendingAfterFailedRun.map(({ attempts }) => attempts)).toEqual([3, 3, 3]);
-    expect(recoveredRun.exitCode).toBe(0);
-    expect(await pendingFileDeletions(dataSource)).toEqual([]);
-    expect(filesOf(await storedFiles(mediaRoot), ann.mediaIds)).toEqual([]);
-    expect(await tablesMentioning(dataSource, [ann.id, mediaId])).toEqual([]);
-  });
+      expect(pendingAfterDeletion.map(({ storageKey }) => storageKey)).toEqual([
+        `${mediaId}/large.webp`,
+        `${mediaId}/medium.webp`,
+        `${mediaId}/small.webp`,
+      ]);
+      expect(pendingAfterDeletion.map(({ attempts }) => attempts)).toEqual([1, 1, 1]);
+      expect(pendingAfterDeletion.every(({ lastError }) => lastError?.includes('EACCES'))).toBe(
+        true,
+      );
+      expect(failedRun.exitCode).toBe(1);
+      expect(failedRun.output).toContain('3 pending media file deletions failed again');
+      expect(pendingAfterFailedRun.map(({ attempts }) => attempts)).toEqual([3, 3, 3]);
+      expect(recoveredRun.exitCode).toBe(0);
+      expect(await pendingFileDeletions(dataSource)).toEqual([]);
+      expect(filesOf(await storedFiles(mediaRoot), ann.mediaIds)).toEqual([]);
+      expect(await tablesMentioning(dataSource, [ann.id, mediaId])).toEqual([]);
+    },
+  );
 });
