@@ -10,5 +10,5 @@ export interface NewUser {
 
 export interface UserCredentials {
   readonly user: User;
-  readonly passwordHash: string;
+  readonly passwordHash: string | null;
 }

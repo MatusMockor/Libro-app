@@ -1,0 +1,3 @@
+export const SIGN_IN_NONCE_BYTES = 32;
+
+export const SIGN_IN_NONCE_LIFETIME_SECONDS = 10 * 60;

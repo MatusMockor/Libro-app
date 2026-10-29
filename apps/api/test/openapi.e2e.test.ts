@@ -158,6 +158,17 @@ describe('OpenAPI', () => {
         ?.schema,
     ).toEqual({ $ref: '#/components/schemas/AuthSession' });
     expect(document.paths['/v1/auth/logout']?.post?.responses).toHaveProperty('204');
+    expect(
+      document.paths['/v1/auth/google/nonce']?.post?.responses['201']?.content?.['application/json']
+        ?.schema,
+    ).toEqual({ $ref: '#/components/schemas/SignInNonce' });
+    expect(
+      document.paths['/v1/auth/google']?.post?.requestBody?.content['application/json']?.schema,
+    ).toEqual({ $ref: '#/components/schemas/IdentityTokenRequest' });
+    expect(
+      document.paths['/v1/auth/google']?.post?.responses['200']?.content?.['application/json']
+        ?.schema,
+    ).toEqual({ $ref: '#/components/schemas/AuthSession' });
   });
 
   test('describes the reading-sessions endpoints with their zod schemas', async ({ http }) => {
@@ -275,8 +286,10 @@ describe('OpenAPI', () => {
         operation('/v1/auth/login', 'post'),
         operation('/v1/auth/refresh', 'post'),
         operation('/v1/auth/logout', 'post'),
+        operation('/v1/auth/google/nonce', 'post'),
+        operation('/v1/auth/google', 'post'),
         operation('/v1/probe/books', 'get'),
       ].map((publicOperation) => publicOperation?.security),
-    ).toEqual([[{}], [{}], [{}], [{}], [{}], [{}]]);
+    ).toEqual([[{}], [{}], [{}], [{}], [{}], [{}], [{}], [{}]]);
   });
 });

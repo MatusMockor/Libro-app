@@ -10,11 +10,14 @@ const { ResettableThrottlerStorage } =
   await import('../../support/resettable-throttler-storage.js');
 const { FACTORY_USER_PASSWORD } =
   await import('../../../src/modules/auth/factories/user.factory.js');
+const { GOOGLE_NONCE_ROUTE, GOOGLE_SIGN_IN_ROUTE, useLocalGoogleSigningKeys } =
+  await import('../../support/google-sign-in.js');
 
 const storage = new ResettableThrottlerStorage();
 
 const test = integrationTest({
-  configure: (builder) => builder.overrideProvider(ThrottlerStorage).useValue(storage),
+  configure: (builder) =>
+    useLocalGoogleSigningKeys(builder).overrideProvider(ThrottlerStorage).useValue(storage),
 }).extend('rateLimits', { auto: true }, () => {
   storage.reset();
 });
@@ -94,6 +97,33 @@ describe('auth rate limit', () => {
       expect(limited.body).toStrictEqual(tooManyRequests(route));
     },
   );
+
+  test('answers 429 on the Google nonce route once the limit is exceeded', async ({ http }) => {
+    const allowed = [await http.post(GOOGLE_NONCE_ROUTE), await http.post(GOOGLE_NONCE_ROUTE)];
+
+    const limited = await http.post(GOOGLE_NONCE_ROUTE);
+
+    expect(allowed.map(({ status }) => status)).toEqual([201, 201]);
+    expect(limited.status).toBe(429);
+    expect(limited.headers['retry-after']).toMatch(/^\d+$/);
+    expect(limited.body).toStrictEqual(tooManyRequests(GOOGLE_NONCE_ROUTE));
+  });
+
+  test('counts rejected Google sign-ins and answers 429 once the limit is exceeded', async ({
+    http,
+  }) => {
+    const rejected = { idToken: 'eyJhbGciOiJSUzI1NiJ9.e30.c2lnbmF0dXJl' };
+
+    const attempts = [
+      await http.post(GOOGLE_SIGN_IN_ROUTE).send(rejected),
+      await http.post(GOOGLE_SIGN_IN_ROUTE).send(rejected),
+    ];
+    const limited = await http.post(GOOGLE_SIGN_IN_ROUTE).send(rejected);
+
+    expect(attempts.map(({ status }) => status)).toEqual([401, 401]);
+    expect(limited.status).toBe(429);
+    expect(limited.body).toStrictEqual(tooManyRequests(GOOGLE_SIGN_IN_ROUTE));
+  });
 
   test('limits register and login separately', async ({ http, signIn }) => {
     const user = await signIn();

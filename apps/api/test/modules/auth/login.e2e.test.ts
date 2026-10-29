@@ -1,8 +1,16 @@
-import { describe, expect } from 'vitest';
+import { describe, expect, onTestFinished, vi } from 'vitest';
 import type { ProblemDetails } from '../../../src/http/problem-details/problem-details.schema.js';
-import { FACTORY_USER_PASSWORD } from '../../../src/modules/auth/factories/user.factory.js';
+import {
+  PASSWORD_HASHER,
+  type PasswordHasher,
+} from '../../../src/modules/auth/application/password-hasher.js';
+import {
+  FACTORY_USER_PASSWORD,
+  type UserFactoryMeta,
+} from '../../../src/modules/auth/factories/user.factory.js';
 import type { AuthSessionResponse } from '../../../src/modules/auth/http/auth-session.response.js';
 import type { UserResponse } from '../../../src/modules/auth/http/user.response.js';
+import { UserEntity } from '../../../src/modules/auth/persistence/user.entity.js';
 import { test } from '../../support/integration-test.js';
 
 const ROUTE = '/v1/auth/login';
@@ -95,6 +103,27 @@ describe('POST /v1/auth/login', () => {
       expect(response.headers['www-authenticate']).toBeUndefined();
       expect(response.body).toStrictEqual(INVALID_CREDENTIALS);
     }
+  });
+
+  test('answers a user without a password like a wrong password, after the same hashing work', async ({
+    app,
+    http,
+    factories,
+  }) => {
+    await factories
+      .get<UserEntity, UserFactoryMeta>(UserEntity)
+      .setMeta({ email: EMAIL, withoutPassword: true })
+      .save();
+    const verifying = vi.spyOn(app.get<PasswordHasher>(PASSWORD_HASHER), 'verify');
+    onTestFinished(() => {
+      verifying.mockRestore();
+    });
+
+    const response = await http.post(ROUTE).send({ email: EMAIL, password: FACTORY_USER_PASSWORD });
+
+    expect(response.status).toBe(401);
+    expect(response.body).toStrictEqual(INVALID_CREDENTIALS);
+    expect(verifying).toHaveBeenCalledOnce();
   });
 
   test('does not apply the registration password rules to a login', async ({ http, signIn }) => {

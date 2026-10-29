@@ -237,7 +237,23 @@ describe('config validation', () => {
       AUTH_RATE_LIMIT_MAX: 10,
       AUTH_RATE_LIMIT_WINDOW_SECONDS: 60,
       TRUST_PROXY: 0,
+      GOOGLE_CLIENT_IDS: [],
     });
+  });
+
+  it('parses GOOGLE_CLIENT_IDS as a trimmed list without blanks or duplicates', () => {
+    const env = envSchema.parse({
+      ...REQUIRED_ENV,
+      GOOGLE_CLIENT_IDS: ' ios.apps.example , ,android.apps.example,ios.apps.example, ',
+    });
+
+    expect(env.GOOGLE_CLIENT_IDS).toEqual(['ios.apps.example', 'android.apps.example']);
+  });
+
+  it('accepts a blank GOOGLE_CLIENT_IDS as no client ids', () => {
+    expect(envSchema.parse({ ...REQUIRED_ENV, GOOGLE_CLIENT_IDS: '  ' }).GOOGLE_CLIENT_IDS).toEqual(
+      [],
+    );
   });
 });
 
