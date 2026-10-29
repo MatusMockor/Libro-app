@@ -4,6 +4,8 @@ import type { MigrationInterface, QueryRunner } from 'typeorm';
 
 const UNUSABLE_PASSWORD_BYTES = 32;
 
+const UNUSABLE_HASHES_PER_BATCH = 8;
+
 const ARGON2ID_OPTIONS = { memoryCost: 19_456, timeCost: 2, parallelism: 1 };
 
 function unusablePasswordHash(): Promise<string> {
@@ -68,11 +70,16 @@ export class AddAuthIdentities1793264518230 implements MigrationInterface {
     const passwordlessUsers = (await queryRunner.query(
       `SELECT "id" FROM "auth"."users" WHERE "password_hash" IS NULL`,
     )) as { id: string }[];
-    for (const { id } of passwordlessUsers) {
-      await queryRunner.query(`UPDATE "auth"."users" SET "password_hash" = $2 WHERE "id" = $1`, [
-        id,
-        await unusablePasswordHash(),
-      ]);
+    const userIds = passwordlessUsers.map(({ id }) => id);
+    for (let start = 0; start < userIds.length; start += UNUSABLE_HASHES_PER_BATCH) {
+      const batch = userIds.slice(start, start + UNUSABLE_HASHES_PER_BATCH);
+      const hashes = await Promise.all(batch.map(() => unusablePasswordHash()));
+      await queryRunner.query(
+        `UPDATE "auth"."users" AS "users" SET "password_hash" = "batch"."password_hash"
+         FROM unnest($1::uuid[], $2::text[]) AS "batch" ("id", "password_hash")
+         WHERE "users"."id" = "batch"."id"`,
+        [batch, hashes],
+      );
     }
     await queryRunner.query(`
             ALTER TABLE "auth"."users"
