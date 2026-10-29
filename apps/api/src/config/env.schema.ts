@@ -1,13 +1,22 @@
 import { z } from 'zod';
 import { AppVersion } from '../shared/app-version.js';
-import { NON_SECRET_JWT_ACCESS_SECRETS } from './non-secret-values.js';
+import { MEDIA_STORAGE_DRIVERS } from './media-storage-driver.js';
+import {
+  NON_SECRET_JWT_ACCESS_SECRETS,
+  NON_SECRET_MEDIA_URL_SIGNING_SECRETS,
+} from './non-secret-values.js';
 import { parseTrustProxy } from './trust-proxy.js';
 
 const requiredOr = (message: string) => (issue: { input?: unknown }) =>
   issue.input === undefined ? 'is required' : message;
 
-const JWT_SECRET_MIN_LENGTH = 32;
-const JWT_SECRET_ERROR = `must be at least ${String(JWT_SECRET_MIN_LENGTH)} characters`;
+const SECRET_MIN_LENGTH = 32;
+const SECRET_ERROR = `must be at least ${String(SECRET_MIN_LENGTH)} characters`;
+
+const secret = z
+  .string({ error: requiredOr(SECRET_ERROR) })
+  .min(SECRET_MIN_LENGTH, { error: SECRET_ERROR })
+  .refine((value) => value.trim() !== '', { error: 'must not be blank' });
 
 const positiveInteger = (fallback: number) =>
   z.coerce
@@ -63,6 +72,34 @@ const commaSeparatedList = z
     ),
   ]);
 
+export const DEFAULT_MEDIA_LOCAL_ROOT = './storage/media';
+
+export const mediaStorageDriverSchema = z
+  .enum(MEDIA_STORAGE_DRIVERS, {
+    error: `must be one of: ${MEDIA_STORAGE_DRIVERS.join(', ')}`,
+  })
+  .default('local');
+
+const directoryPath = (fallback: string) =>
+  z
+    .string({ error: 'must be a directory path' })
+    .optional()
+    .transform((value) => (value === undefined || value.trim() === '' ? fallback : value.trim()));
+
+const PUBLIC_URL_ERROR = 'must be an absolute http:// or https:// URL without query or fragment';
+
+const publicUrl = (fallback: string) =>
+  z
+    .url({ protocol: /^https?$/, error: PUBLIC_URL_ERROR })
+    .refine((value) => !/[?#]/.test(value), { error: PUBLIC_URL_ERROR })
+    .default(fallback)
+    .transform((value) => value.replace(/\/+$/, ''));
+
+const NON_SECRET_VALUES = [
+  { key: 'JWT_ACCESS_SECRET', values: NON_SECRET_JWT_ACCESS_SECRETS },
+  { key: 'MEDIA_URL_SIGNING_SECRET', values: NON_SECRET_MEDIA_URL_SIGNING_SECRETS },
+] as const;
+
 export const envSchema = z
   .object({
     NODE_ENV: z
@@ -82,25 +119,32 @@ export const envSchema = z
     }),
     MIN_APP_VERSION_IOS: appVersion,
     MIN_APP_VERSION_ANDROID: appVersion,
-    JWT_ACCESS_SECRET: z
-      .string({ error: requiredOr(JWT_SECRET_ERROR) })
-      .min(JWT_SECRET_MIN_LENGTH, { error: JWT_SECRET_ERROR })
-      .refine((secret) => secret.trim() !== '', { error: 'must not be blank' }),
+    JWT_ACCESS_SECRET: secret,
     AUTH_RATE_LIMIT_MAX: positiveInteger(10),
     AUTH_RATE_LIMIT_WINDOW_SECONDS: positiveInteger(60),
     TRUST_PROXY: trustProxy,
     GOOGLE_CLIENT_IDS: commaSeparatedList,
+    MEDIA_STORAGE_DRIVER: mediaStorageDriverSchema,
+    MEDIA_LOCAL_ROOT: directoryPath(DEFAULT_MEDIA_LOCAL_ROOT),
+    MEDIA_URL_SIGNING_SECRET: secret,
+    PUBLIC_API_URL: publicUrl('http://localhost:3000'),
+    MEDIA_UPLOAD_CONCURRENCY: positiveInteger(4),
   })
   .check((context) => {
-    const { NODE_ENV, JWT_ACCESS_SECRET } = context.value;
+    if (context.value.NODE_ENV !== 'production') {
+      return;
+    }
 
-    if (NODE_ENV === 'production' && NON_SECRET_JWT_ACCESS_SECRETS.includes(JWT_ACCESS_SECRET)) {
-      context.issues.push({
-        code: 'custom',
-        path: ['JWT_ACCESS_SECRET'],
-        input: JWT_ACCESS_SECRET,
-        message: 'must not be the development value in production',
-      });
+    for (const { key, values } of NON_SECRET_VALUES) {
+      const value = context.value[key];
+      if (values.includes(value)) {
+        context.issues.push({
+          code: 'custom',
+          path: [key],
+          input: value,
+          message: 'must not be the development value in production',
+        });
+      }
     }
   });
 

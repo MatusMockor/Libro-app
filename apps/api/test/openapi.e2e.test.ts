@@ -255,6 +255,50 @@ describe('OpenAPI', () => {
     ]);
   });
 
+  test('describes the media endpoints with their zod schemas', async ({ http }) => {
+    const document = (await http.get('/docs-json')).body as OpenApiDocument;
+    const upload = document.paths['/v1/media']?.post;
+    const media = document.paths['/v1/media/{mediaId}'];
+    const file = document.paths['/v1/media/files/{key}']?.get;
+    const mediaSchema = { $ref: '#/components/schemas/Media' };
+
+    expect(upload?.requestBody?.content['multipart/form-data']?.schema).toEqual({
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: expect.objectContaining({ type: 'string', format: 'binary' }) as unknown,
+      },
+    });
+    expect(upload?.responses['201']?.content?.['application/json']?.schema).toEqual(mediaSchema);
+    expect(media?.get?.responses['200']?.content?.['application/json']?.schema).toEqual(
+      mediaSchema,
+    );
+    expect(media?.get?.parameters?.filter((parameter) => parameter.in === 'path')).toEqual([
+      expect.objectContaining({ name: 'mediaId', in: 'path', required: true }),
+    ]);
+    expect(media?.delete?.responses).toHaveProperty('204');
+    expect(file?.parameters?.filter((parameter) => parameter.in !== 'header')).toEqual([
+      expect.objectContaining({
+        name: 'key',
+        in: 'path',
+        schema: expect.objectContaining({ type: 'string' }) as unknown,
+      }),
+      expect.objectContaining({ name: 'expires', in: 'query' }),
+      expect.objectContaining({ name: 'signature', in: 'query' }),
+    ]);
+    expect(file?.responses['200']?.content).toEqual({
+      'image/webp': { schema: { type: 'string', format: 'binary' } },
+    });
+    expect(Object.keys(document.components.schemas.Media?.properties ?? {})).toEqual([
+      'id',
+      'width',
+      'height',
+      'createdAt',
+      'variants',
+      'urlsExpireAt',
+    ]);
+  });
+
   test('requires the bearer token by default and lets public operations opt out', async ({
     http,
   }) => {
@@ -276,9 +320,12 @@ describe('OpenAPI', () => {
         operation('/v1/readings/{readingId}/tree', 'get'),
         operation('/v1/me/forest', 'get'),
         operation('/v1/me/growing-trees', 'get'),
+        operation('/v1/media', 'post'),
+        operation('/v1/media/{mediaId}', 'get'),
+        operation('/v1/media/{mediaId}', 'delete'),
         operation('/v1/probe/protected', 'get'),
       ].map((protectedOperation) => protectedOperation?.security),
-    ).toEqual(Array.from({ length: 10 }, () => undefined));
+    ).toEqual(Array.from({ length: 13 }, () => undefined));
     expect(
       [
         operation('/health', 'get'),
@@ -288,8 +335,9 @@ describe('OpenAPI', () => {
         operation('/v1/auth/logout', 'post'),
         operation('/v1/auth/google/nonce', 'post'),
         operation('/v1/auth/google', 'post'),
+        operation('/v1/media/files/{key}', 'get'),
         operation('/v1/probe/books', 'get'),
       ].map((publicOperation) => publicOperation?.security),
-    ).toEqual([[{}], [{}], [{}], [{}], [{}], [{}], [{}], [{}]]);
+    ).toEqual([[{}], [{}], [{}], [{}], [{}], [{}], [{}], [{}], [{}]]);
   });
 });

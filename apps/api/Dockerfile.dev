@@ -22,4 +22,6 @@ COPY --chown=node:node packages/tree-engine/src packages/tree-engine/src
 
 WORKDIR /app/apps/api
 
+RUN mkdir -p storage/media
+
 CMD ["pnpm", "run", "start:dev", "--debug", "0.0.0.0:9229"]

@@ -2,6 +2,7 @@ import { describe, expect, vi } from 'vitest';
 
 vi.stubEnv('NODE_ENV', 'production');
 vi.stubEnv('JWT_ACCESS_SECRET', 'a-production-like-secret-for-the-openapi-test');
+vi.stubEnv('MEDIA_URL_SIGNING_SECRET', 'a-production-like-media-secret-for-the-openapi-test');
 
 const { test } = await import('./support/integration-test.js');
 

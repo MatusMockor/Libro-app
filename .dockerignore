@@ -3,6 +3,7 @@
 **/node_modules
 **/dist
 **/coverage
+apps/api/storage
 **/.turbo
 **/*.log
 .git

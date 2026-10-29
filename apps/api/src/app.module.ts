@@ -11,6 +11,7 @@ import { HttpApiModule } from './http/http-api.module.js';
 import { AuthModule } from './modules/auth/index.js';
 import { BooksModule } from './modules/books/index.js';
 import { IdentityProvidersModule } from './modules/identity-providers/index.js';
+import { MediaModule } from './modules/media/index.js';
 import { ReadingSessionsModule } from './modules/reading-sessions/index.js';
 import { TreeModule } from './modules/tree/index.js';
 
@@ -28,6 +29,7 @@ import { TreeModule } from './modules/tree/index.js';
     BooksModule,
     ReadingSessionsModule,
     TreeModule,
+    MediaModule,
   ],
 })
 export class AppModule {}
