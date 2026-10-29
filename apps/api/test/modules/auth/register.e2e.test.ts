@@ -4,8 +4,10 @@ import { verify } from '@node-rs/argon2';
 import type { DataSource } from 'typeorm';
 import { describe, expect } from 'vitest';
 import type { ProblemDetails } from '../../../src/http/problem-details/problem-details.schema.js';
+import type { UserFactoryMeta } from '../../../src/modules/auth/factories/user.factory.js';
 import type { AuthSessionResponse } from '../../../src/modules/auth/http/auth-session.response.js';
 import type { UserResponse } from '../../../src/modules/auth/http/user.response.js';
+import { UserEntity } from '../../../src/modules/auth/persistence/user.entity.js';
 import { integrationTest } from '../../support/integration-test.js';
 import { ANY_UUID } from '../../support/matchers.js';
 import { ProbeAuthSubscriberModule } from '../../support/probe-events/auth/probe-auth-subscriber.module.js';
@@ -232,6 +234,21 @@ describe('POST /v1/auth/register', () => {
     });
     expect((await storedUsers(dataSource)).map(({ email }) => email)).toEqual([READER.email]);
     expect(recorder.all()).toEqual([]);
+  });
+
+  test('answers 409 email_already_registered for the email of an account without a password', async ({
+    http,
+    factories,
+  }) => {
+    await factories
+      .get<UserEntity, UserFactoryMeta>(UserEntity)
+      .setMeta({ email: READER.email, withoutPassword: true })
+      .save();
+
+    const response = await http.post(ROUTE).send(READER);
+
+    expect(response.status).toBe(409);
+    expect((response.body as ProblemDetails).code).toBe('email_already_registered');
   });
 
   test('answers 409 to the loser of two concurrent registrations with the same email', async ({

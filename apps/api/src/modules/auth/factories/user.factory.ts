@@ -7,6 +7,7 @@ import { ARGON2_OPTIONS } from '../security/argon2-password.hasher.js';
 
 export interface UserFactoryMeta {
   email?: string;
+  withoutPassword?: boolean;
 }
 
 export const FACTORY_USER_PASSWORD = 'correct horse battery staple';
@@ -24,11 +25,17 @@ function passwordHash(): string {
 export function createUserFactory(): FactoryCallback<UserEntity, UserFactoryMeta> {
   let serial = FIRST_SERIAL;
 
-  return (meta) =>
-    toUserEntity({
+  return (meta) => {
+    const user = toUserEntity({
       email: normaliseEmail(meta?.email ?? `reader-${String(serial++)}@example.test`),
       passwordHash: passwordHash(),
     });
+    if (meta?.withoutPassword === true) {
+      user.passwordHash = null;
+    }
+
+    return user;
+  };
 }
 
 export default setSeederFactory(UserEntity, createUserFactory());

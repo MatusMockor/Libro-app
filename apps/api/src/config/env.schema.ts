@@ -51,6 +51,18 @@ const appVersion = z
     return version;
   });
 
+const commaSeparatedList = z
+  .string({ error: 'must be a comma-separated list' })
+  .optional()
+  .transform((value) => [
+    ...new Set(
+      (value ?? '')
+        .split(',')
+        .map((item) => item.trim())
+        .filter((item) => item !== ''),
+    ),
+  ]);
+
 export const envSchema = z
   .object({
     NODE_ENV: z
@@ -77,6 +89,7 @@ export const envSchema = z
     AUTH_RATE_LIMIT_MAX: positiveInteger(10),
     AUTH_RATE_LIMIT_WINDOW_SECONDS: positiveInteger(60),
     TRUST_PROXY: trustProxy,
+    GOOGLE_CLIENT_IDS: commaSeparatedList,
   })
   .check((context) => {
     const { NODE_ENV, JWT_ACCESS_SECRET } = context.value;
