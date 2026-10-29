@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import sharp, { type Metadata, type SharpOptions } from 'sharp';
 import type {
   ImageProcessor,
@@ -97,10 +97,16 @@ export class SharpImageProcessor implements ImageProcessor {
   }
 }
 
+const logger = new Logger(SharpImageProcessor.name);
+
 function toProblem(error: unknown): Error {
   if (error instanceof Error && PIXEL_LIMIT_ERROR.test(error.message)) {
     return new MediaTooManyPixelsException(MAX_INPUT_PIXELS);
   }
+
+  logger.warn(
+    `Refused an upload sharp could not decode: ${error instanceof Error ? error.message : String(error)}`,
+  );
 
   return new UnsupportedMediaTypeException();
 }
