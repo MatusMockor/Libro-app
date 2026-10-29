@@ -11,6 +11,7 @@ import type { ProfileFactoryMeta } from '../../../src/modules/profiles/factories
 import { ProfileEntity } from '../../../src/modules/profiles/persistence/profile.entity.js';
 import { CapturingLogger } from '../../support/capturing-logger.js';
 import {
+  engagesWith,
   filesOf,
   follows,
   pendingFileDeletions,
@@ -66,6 +67,8 @@ describe('UserDeleted handlers', () => {
     const ann = await arrangeAccount();
     const ben = await arrangeAccount();
     await follows(http, ben, ann);
+    await engagesWith(http, ben, ann);
+    await engagesWith(http, ann, ben);
     await deleteAccount(ann, { password: FACTORY_USER_PASSWORD });
     const countsAfterDeletion = await rowCounts(dataSource);
     const filesAfterDeletion = await storedFiles(mediaRoot);
@@ -83,7 +86,12 @@ describe('UserDeleted handlers', () => {
     expect(await rowCounts(dataSource)).toEqual(countsAfterDeletion);
     expect(await storedFiles(mediaRoot)).toEqual(filesAfterDeletion);
     expect(await tablesMentioning(dataSource, [ben.id])).toEqual(
-      expect.arrayContaining(['media.files', 'profiles.profiles', 'reading.readings']),
+      expect.arrayContaining([
+        'feed.posts',
+        'media.files',
+        'profiles.profiles',
+        'reading.readings',
+      ]),
     );
   });
 });

@@ -1,7 +1,16 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn, type Relation } from 'typeorm';
+import {
+  Column,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  PrimaryColumn,
+  type Relation,
+} from 'typeorm';
 import { PostEntity } from './post.entity.js';
 
 @Entity({ schema: 'feed', name: 'likes' })
+@Index('likes_user_id_idx', ['userId'])
 export class LikeEntity {
   @PrimaryColumn({ name: 'post_id', type: 'uuid', primaryKeyConstraintName: 'likes_pkey' })
   postId: string;

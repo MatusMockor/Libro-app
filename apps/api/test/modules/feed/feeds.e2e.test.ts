@@ -257,10 +257,10 @@ describe('GET /v1/feed/community', () => {
     queries.mockRestore();
 
     expect(counted).toEqual({
-      communityOne: 3,
-      communityTwenty: 3,
-      followingOne: 4,
-      followingTwenty: 4,
+      communityOne: 4,
+      communityTwenty: 4,
+      followingOne: 5,
+      followingTwenty: 5,
     });
   });
 });

@@ -17,6 +17,7 @@ const REACTION_KEY_LIST = REACTION_KEYS.map((key) => `'${key}'`).join(', ');
 @Entity({ schema: 'feed', name: 'reactions' })
 @Unique('reactions_post_id_user_id_reaction_key', ['postId', 'userId', 'reaction'])
 @Index('reactions_post_id_created_at_id_idx', ['postId', 'createdAt', 'id'])
+@Index('reactions_user_id_idx', ['userId'])
 @Check('reactions_reaction_check', `"reaction" IN (${REACTION_KEY_LIST})`)
 export class ReactionEntity {
   @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'reactions_pkey' })

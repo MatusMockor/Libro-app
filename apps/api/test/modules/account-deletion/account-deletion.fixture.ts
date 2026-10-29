@@ -19,6 +19,13 @@ import {
 } from '../../../src/modules/auth/index.js';
 import { IdentityEntity } from '../../../src/modules/auth/persistence/identity.entity.js';
 import { WorkEntity } from '../../../src/modules/books/persistence/work.entity.js';
+import type { LikeFactoryMeta } from '../../../src/modules/feed/factories/like.factory.js';
+import type { PostFactoryMeta } from '../../../src/modules/feed/factories/post.factory.js';
+import type { ReactionFactoryMeta } from '../../../src/modules/feed/factories/reaction.factory.js';
+import type { PostResponse } from '../../../src/modules/feed/http/post.response.js';
+import { LikeEntity } from '../../../src/modules/feed/persistence/like.entity.js';
+import { PostEntity } from '../../../src/modules/feed/persistence/post.entity.js';
+import { ReactionEntity } from '../../../src/modules/feed/persistence/reaction.entity.js';
 import type { MediaFileFactoryMeta } from '../../../src/modules/media/factories/media-file.factory.js';
 import type { MediaResponse } from '../../../src/modules/media/http/media.response.js';
 import { MEDIA_FILE_DELETIONS, type MediaFileDeletions } from '../../../src/modules/media/index.js';
@@ -52,6 +59,7 @@ export interface Account extends SignedInUser {
   readonly readingIds: readonly string[];
   readonly sessionIds: readonly string[];
   readonly authSessionIds: readonly string[];
+  readonly postIds: readonly string[];
 }
 
 export type ArrangeAccount = (user?: SignedInUser) => Promise<Account>;
@@ -163,6 +171,12 @@ function arrangeAccountWith(
     );
     const finished = await readBook(http, user.authorization, finishedWork.id, true);
     const open = await readBook(http, user.authorization, openWork.id, false);
+    const posted = await client.post('/v1/posts', {
+      text: 'Finished Kafka on the tram',
+      workId: finishedWork.id,
+      place: 'Kaviaren Libro',
+    });
+    expectStatus(posted, 201, 'post');
     await factories
       .get<IdentityEntity, IdentityFactoryMeta>(IdentityEntity)
       .setMeta({ userId: user.id })
@@ -174,6 +188,7 @@ function arrangeAccountWith(
       readingIds: [finished.readingId, open.readingId],
       sessionIds: [finished.id, open.id],
       authSessionIds: await authSessionIdsOf(dataSource, user.id),
+      postIds: [(posted.body as PostResponse).id],
     };
   };
 }
@@ -191,6 +206,18 @@ export async function follows(
   }
 }
 
+export async function engagesWith(
+  http: Agent,
+  reader: { readonly authorization: string },
+  ...authors: readonly { readonly postIds: readonly string[] }[]
+): Promise<void> {
+  const client = as(http, reader.authorization);
+  for (const postId of authors.flatMap(({ postIds }) => postIds)) {
+    expectStatus(await client.put(`/v1/posts/${postId}/like`), 204, `like ${postId}`);
+    expectStatus(await client.put(`/v1/posts/${postId}/reactions/books`), 204, `react ${postId}`);
+  }
+}
+
 export function needlesOf(account: Account): string[] {
   return [
     account.id,
@@ -199,6 +226,7 @@ export function needlesOf(account: Account): string[] {
     ...account.readingIds,
     ...account.sessionIds,
     ...account.authSessionIds,
+    ...account.postIds,
   ];
 }
 
@@ -316,8 +344,27 @@ export async function arrangeLeftovers(
     .save();
   await mkdir(join(mediaRoot, media.id), { recursive: true });
   await writeFile(join(mediaRoot, media.id, 'small.webp'), 'left over');
+  const post = await factories
+    .get<PostEntity, PostFactoryMeta>(PostEntity)
+    .setMeta({ authorId: userId, workId: work.id })
+    .save();
+  const followeePost = await factories
+    .get<PostEntity, PostFactoryMeta>(PostEntity)
+    .setMeta({ authorId: followeeId })
+    .save();
+  await factories
+    .get<LikeEntity, LikeFactoryMeta>(LikeEntity)
+    .setMeta({ postId: followeePost.id, userId })
+    .save();
+  await factories
+    .get<ReactionEntity, ReactionFactoryMeta>(ReactionEntity)
+    .setMeta({ postId: followeePost.id, userId, reaction: 'hug' })
+    .save();
 
-  return { needles: [userId, reading.id, session.id, media.id], mediaIds: [media.id] };
+  return {
+    needles: [userId, reading.id, session.id, media.id, post.id],
+    mediaIds: [media.id],
+  };
 }
 
 function purgeOf(app: INestApplication): Purge {

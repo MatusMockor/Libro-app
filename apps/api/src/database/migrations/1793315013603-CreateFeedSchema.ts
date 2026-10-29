@@ -37,6 +37,9 @@ export class CreateFeedSchema1793315013603 implements MigrationInterface {
             )
         `);
     await queryRunner.query(`
+            CREATE INDEX "likes_user_id_idx" ON "feed"."likes" ("user_id")
+        `);
+    await queryRunner.query(`
             CREATE TABLE "feed"."reactions" (
                 "id" uuid NOT NULL DEFAULT gen_random_uuid(),
                 "post_id" uuid NOT NULL,
@@ -62,6 +65,9 @@ export class CreateFeedSchema1793315013603 implements MigrationInterface {
             CREATE INDEX "reactions_post_id_created_at_id_idx" ON "feed"."reactions" ("post_id", "created_at", "id")
         `);
     await queryRunner.query(`
+            CREATE INDEX "reactions_user_id_idx" ON "feed"."reactions" ("user_id")
+        `);
+    await queryRunner.query(`
             ALTER TABLE "feed"."likes"
             ADD CONSTRAINT "likes_post_id_fkey" FOREIGN KEY ("post_id") REFERENCES "feed"."posts"("id") ON DELETE CASCADE ON UPDATE NO ACTION
         `);
@@ -79,10 +85,16 @@ export class CreateFeedSchema1793315013603 implements MigrationInterface {
             ALTER TABLE "feed"."likes" DROP CONSTRAINT "likes_post_id_fkey"
         `);
     await queryRunner.query(`
+            DROP INDEX "feed"."reactions_user_id_idx"
+        `);
+    await queryRunner.query(`
             DROP INDEX "feed"."reactions_post_id_created_at_id_idx"
         `);
     await queryRunner.query(`
             DROP TABLE "feed"."reactions"
+        `);
+    await queryRunner.query(`
+            DROP INDEX "feed"."likes_user_id_idx"
         `);
     await queryRunner.query(`
             DROP TABLE "feed"."likes"
