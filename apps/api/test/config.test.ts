@@ -10,14 +10,18 @@ import { envSchema, type Env } from '../src/config/env.schema.js';
 import { loadEnv } from '../src/config/load-env.js';
 import {
   LOCAL_DEV_JWT_ACCESS_SECRET,
+  LOCAL_DEV_MEDIA_URL_SIGNING_SECRET,
   NON_SECRET_JWT_ACCESS_SECRETS,
+  NON_SECRET_MEDIA_URL_SIGNING_SECRETS,
   TEST_JWT_ACCESS_SECRET,
+  TEST_MEDIA_URL_SIGNING_SECRET,
 } from '../src/config/non-secret-values.js';
 import { AppVersion } from '../src/shared/app-version.js';
 
 const DATABASE_URL = 'postgresql://libro_app@127.0.0.1:5433/libro_app';
 const JWT_ACCESS_SECRET = 'a-config-test-secret-of-at-least-32-chars';
-const REQUIRED_ENV = { DATABASE_URL, JWT_ACCESS_SECRET };
+const MEDIA_URL_SIGNING_SECRET = 'a-config-test-media-secret-of-32-chars';
+const REQUIRED_ENV = { DATABASE_URL, JWT_ACCESS_SECRET, MEDIA_URL_SIGNING_SECRET };
 
 describe('config validation', () => {
   afterEach(() => {
@@ -238,6 +242,11 @@ describe('config validation', () => {
       AUTH_RATE_LIMIT_WINDOW_SECONDS: 60,
       TRUST_PROXY: 0,
       GOOGLE_CLIENT_IDS: [],
+      MEDIA_STORAGE_DRIVER: 'local',
+      MEDIA_LOCAL_ROOT: './storage/media',
+      MEDIA_URL_SIGNING_SECRET,
+      PUBLIC_API_URL: 'http://localhost:3000',
+      MEDIA_UPLOAD_CONCURRENCY: 4,
     });
   });
 
@@ -248,6 +257,127 @@ describe('config validation', () => {
     });
 
     expect(env.GOOGLE_CLIENT_IDS).toEqual(['ios.apps.example', 'android.apps.example']);
+  });
+
+  it('refuses to start without a MEDIA_URL_SIGNING_SECRET', async () => {
+    vi.stubEnv('MEDIA_URL_SIGNING_SECRET', undefined);
+
+    await expect(ConfigModule.forRoot(configModuleOptions([]))).rejects.toThrow(
+      'Config validation error: MEDIA_URL_SIGNING_SECRET: is required',
+    );
+  });
+
+  it.for([
+    { value: 'x'.repeat(31), message: 'must be at least 32 characters' },
+    { value: ' '.repeat(40), message: 'must not be blank' },
+  ])('refuses the MEDIA_URL_SIGNING_SECRET $value', ({ value, message }) => {
+    const result = envSchema.safeParse({ ...REQUIRED_ENV, MEDIA_URL_SIGNING_SECRET: value });
+
+    expect(result.error?.issues.map(({ path, message: text }) => ({ path, text }))).toEqual([
+      { path: ['MEDIA_URL_SIGNING_SECRET'], text: message },
+    ]);
+  });
+
+  it.for([
+    { name: 'the local development secret', secret: LOCAL_DEV_MEDIA_URL_SIGNING_SECRET },
+    { name: 'the test secret', secret: TEST_MEDIA_URL_SIGNING_SECRET },
+  ])(
+    'refuses to start in production with $name as MEDIA_URL_SIGNING_SECRET',
+    async ({ secret }) => {
+      vi.stubEnv('NODE_ENV', 'production');
+      vi.stubEnv('JWT_ACCESS_SECRET', 'kq3V9x-production-grade-secret-7Hd2LmZp0Rw');
+      vi.stubEnv('MEDIA_URL_SIGNING_SECRET', secret);
+
+      await expect(ConfigModule.forRoot(configModuleOptions([]))).rejects.toThrow(
+        'Config validation error: MEDIA_URL_SIGNING_SECRET: must not be the development value in production',
+      );
+    },
+  );
+
+  it('names both development secrets in production', () => {
+    const result = envSchema.safeParse({
+      ...REQUIRED_ENV,
+      NODE_ENV: 'production',
+      JWT_ACCESS_SECRET: LOCAL_DEV_JWT_ACCESS_SECRET,
+      MEDIA_URL_SIGNING_SECRET: LOCAL_DEV_MEDIA_URL_SIGNING_SECRET,
+    });
+
+    expect(result.error?.issues.map(({ path }) => path)).toEqual([
+      ['JWT_ACCESS_SECRET'],
+      ['MEDIA_URL_SIGNING_SECRET'],
+    ]);
+  });
+
+  it('accepts a strong MEDIA_URL_SIGNING_SECRET in production', () => {
+    const result = envSchema.safeParse({
+      ...REQUIRED_ENV,
+      NODE_ENV: 'production',
+      JWT_ACCESS_SECRET: 'kq3V9x-production-grade-secret-7Hd2LmZp0Rw',
+      MEDIA_URL_SIGNING_SECRET: 'Zr8pQ2-production-media-secret-Lw4Hc9Vt1Nb',
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it('lists the MEDIA_URL_SIGNING_SECRET of .env.example as a non-secret value', async () => {
+    const example = await readFile(resolve(WORKSPACE_ROOT, '.env.example'), 'utf8');
+    const value = /^MEDIA_URL_SIGNING_SECRET=(.*)$/m.exec(example)?.[1];
+
+    expect(value).toBe(LOCAL_DEV_MEDIA_URL_SIGNING_SECRET);
+    expect(NON_SECRET_MEDIA_URL_SIGNING_SECRETS).toContain(value);
+  });
+
+  it.for([
+    { value: '0', message: 'must be at least 1' },
+    { value: 'many', message: 'must be a number' },
+  ])('refuses the MEDIA_UPLOAD_CONCURRENCY $value', ({ value, message }) => {
+    const result = envSchema.safeParse({ ...REQUIRED_ENV, MEDIA_UPLOAD_CONCURRENCY: value });
+
+    expect(result.error?.issues.map(({ path, message: text }) => ({ path, text }))).toEqual([
+      { path: ['MEDIA_UPLOAD_CONCURRENCY'], text: message },
+    ]);
+  });
+
+  it('refuses an unknown MEDIA_STORAGE_DRIVER', () => {
+    const result = envSchema.safeParse({ ...REQUIRED_ENV, MEDIA_STORAGE_DRIVER: 's3' });
+
+    expect(result.error?.issues.map(({ path, message }) => ({ path, message }))).toEqual([
+      { path: ['MEDIA_STORAGE_DRIVER'], message: 'must be one of: local' },
+    ]);
+  });
+
+  it.for([
+    { value: ' /var/lib/libro/media ', root: '/var/lib/libro/media' },
+    { value: '', root: './storage/media' },
+    { value: '   ', root: './storage/media' },
+  ])('parses MEDIA_LOCAL_ROOT $value', ({ value, root }) => {
+    expect(envSchema.parse({ ...REQUIRED_ENV, MEDIA_LOCAL_ROOT: value }).MEDIA_LOCAL_ROOT).toBe(
+      root,
+    );
+  });
+
+  it.for([
+    { value: 'https://api.example.test', url: 'https://api.example.test' },
+    { value: 'https://api.example.test/', url: 'https://api.example.test' },
+    { value: 'http://192.168.1.20:3000/libro/', url: 'http://192.168.1.20:3000/libro' },
+  ])('parses PUBLIC_API_URL $value', ({ value, url }) => {
+    expect(envSchema.parse({ ...REQUIRED_ENV, PUBLIC_API_URL: value }).PUBLIC_API_URL).toBe(url);
+  });
+
+  it.for([
+    'api.example.test',
+    'ftp://api.example.test',
+    'https://api.example.test/?a=1',
+    'https://api.example.test/#top',
+  ])('refuses the PUBLIC_API_URL %j', (value) => {
+    const result = envSchema.safeParse({ ...REQUIRED_ENV, PUBLIC_API_URL: value });
+
+    expect(result.error?.issues.map(({ path, message }) => ({ path, message }))).toEqual([
+      {
+        path: ['PUBLIC_API_URL'],
+        message: 'must be an absolute http:// or https:// URL without query or fragment',
+      },
+    ]);
   });
 
   it('accepts a blank GOOGLE_CLIENT_IDS as no client ids', () => {

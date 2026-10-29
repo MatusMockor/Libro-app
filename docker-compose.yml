@@ -37,7 +37,9 @@ services:
     environment:
       PORT: ${PORT:-3000}
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      MEDIA_LOCAL_ROOT: /app/apps/api/storage/media
     volumes:
+      - media:/app/apps/api/storage/media
       - ./apps/api/src:/app/apps/api/src:ro
       - ./packages/tree-engine/src:/app/packages/tree-engine/src:ro
       - ./tsconfig.base.json:/app/tsconfig.base.json:ro
@@ -82,3 +84,5 @@ services:
 volumes:
   pgdata:
     name: libro-app-pgdata
+  media:
+    name: libro-app-media

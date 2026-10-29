@@ -6,6 +6,8 @@ import { IdentityEntity } from '../../src/modules/auth/persistence/identity.enti
 import { UserEntity } from '../../src/modules/auth/persistence/user.entity.js';
 import { createWorkFactory } from '../../src/modules/books/factories/work.factory.js';
 import { WorkEntity } from '../../src/modules/books/persistence/work.entity.js';
+import { createMediaFileFactory } from '../../src/modules/media/factories/media-file.factory.js';
+import { MediaFileEntity } from '../../src/modules/media/persistence/media-file.entity.js';
 import { createReadingSessionFactory } from '../../src/modules/reading-sessions/factories/reading-session.factory.js';
 import { createReadingFactory } from '../../src/modules/reading-sessions/factories/reading.factory.js';
 import { ReadingSessionEntity } from '../../src/modules/reading-sessions/persistence/reading-session.entity.js';
@@ -18,6 +20,7 @@ export function seederFactories(dataSource: DataSource): SeederFactoryManager {
   factories.set(IdentityEntity, createIdentityFactory());
   factories.set(ReadingEntity, createReadingFactory());
   factories.set(ReadingSessionEntity, createReadingSessionFactory());
+  factories.set(MediaFileEntity, createMediaFileFactory());
 
   return factories;
 }

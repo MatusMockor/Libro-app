@@ -1,5 +1,8 @@
 import { defineConfig } from 'vitest/config';
-import { TEST_JWT_ACCESS_SECRET } from './src/config/non-secret-values.js';
+import {
+  TEST_JWT_ACCESS_SECRET,
+  TEST_MEDIA_URL_SIGNING_SECRET,
+} from './src/config/non-secret-values.js';
 import { TEST_GOOGLE_CLIENT_IDS } from './test/support/google-client-ids.js';
 
 export default defineConfig({
@@ -10,9 +13,14 @@ export default defineConfig({
       JWT_ACCESS_SECRET: TEST_JWT_ACCESS_SECRET,
       AUTH_RATE_LIMIT_MAX: '1000',
       GOOGLE_CLIENT_IDS: TEST_GOOGLE_CLIENT_IDS.join(','),
+      MEDIA_URL_SIGNING_SECRET: TEST_MEDIA_URL_SIGNING_SECRET,
+      PUBLIC_API_URL: 'http://media.test',
     },
     globalSetup: ['test/support/global-setup.ts'],
-    setupFiles: ['test/support/database-per-file.setup.ts'],
+    setupFiles: [
+      'test/support/database-per-file.setup.ts',
+      'test/support/media-storage-per-file.setup.ts',
+    ],
     execArgv: ['--import', '@oxc-node/core/register'],
   },
 });
