@@ -10,6 +10,7 @@ import { AuthenticationModule } from './http/authentication/authentication.modul
 import { HttpApiModule } from './http/http-api.module.js';
 import { AuthModule } from './modules/auth/index.js';
 import { BooksModule } from './modules/books/index.js';
+import { FeedModule } from './modules/feed/index.js';
 import { IdentityProvidersModule } from './modules/identity-providers/index.js';
 import { MediaModule } from './modules/media/index.js';
 import { ProfilesModule } from './modules/profiles/index.js';
@@ -32,6 +33,7 @@ import { TreeModule } from './modules/tree/index.js';
     TreeModule,
     MediaModule,
     ProfilesModule,
+    FeedModule,
   ],
 })
 export class AppModule {}
