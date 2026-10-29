@@ -17,15 +17,24 @@ const USER_TABLES = `
         AND dependency.objid = class.oid
         AND dependency.deptype = 'e'
     )
+  ORDER BY name
 `;
 
+export async function userTables(
+  dataSource: DataSource,
+  excluded: readonly string[],
+): Promise<string[]> {
+  const tables = await dataSource.query<{ name: string }[]>(USER_TABLES, [excluded]);
+
+  return tables.map(({ name }) => name);
+}
+
 export async function truncateAllTables(dataSource: DataSource): Promise<void> {
-  const tables = await dataSource.query<{ name: string }[]>(USER_TABLES, [KEPT_TABLES]);
+  const tables = await userTables(dataSource, KEPT_TABLES);
 
   if (tables.length === 0) {
     return;
   }
 
-  const names = tables.map((table) => table.name).join(', ');
-  await dataSource.query(`TRUNCATE TABLE ${names} RESTART IDENTITY CASCADE`);
+  await dataSource.query(`TRUNCATE TABLE ${tables.join(', ')} RESTART IDENTITY CASCADE`);
 }

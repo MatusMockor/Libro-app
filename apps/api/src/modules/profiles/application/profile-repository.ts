@@ -10,4 +10,5 @@ export interface ProfileRepository {
   findById(viewerId: string, userId: string): Promise<StoredProfile | undefined>;
   findByHandle(viewerId: string, handle: string): Promise<StoredProfile | undefined>;
   update(userId: string, changes: ProfileChanges): Promise<void>;
+  delete(userId: string): Promise<void>;
 }

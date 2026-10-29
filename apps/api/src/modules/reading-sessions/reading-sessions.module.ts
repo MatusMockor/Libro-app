@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BooksModule } from '../books/index.js';
+import { EraseReadingDataHandler } from './application/erase-reading-data.handler.js';
 import { FinishReadingService } from './application/finish-reading.service.js';
 import { READING_REPOSITORY } from './application/reading-repository.js';
 import { READING_SESSION_REPOSITORY } from './application/reading-session-repository.js';
@@ -37,6 +38,7 @@ import { READING_HISTORY } from './reading-history.js';
     SessionTransitionService,
     SessionProgressService,
     FinishReadingService,
+    EraseReadingDataHandler,
     { provide: READING_SESSION_REPOSITORY, useClass: TypeOrmReadingSessionRepository },
     { provide: READING_REPOSITORY, useClass: TypeOrmReadingRepository },
     { provide: READING_HISTORY, useClass: TypeOrmReadingHistoryRepository },

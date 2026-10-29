@@ -66,6 +66,10 @@ const INSERT_TOP_BOOKS = `
   FROM unnest($2::uuid[]) WITH ORDINALITY AS book (work_id, position)
 `;
 
+const DELETE_PROFILE = `
+  DELETE FROM profiles.profiles WHERE user_id = $1
+`;
+
 @Injectable()
 export class TypeOrmProfileRepository implements ProfileRepository {
   constructor(
@@ -128,6 +132,10 @@ export class TypeOrmProfileRepository implements ProfileRepository {
 
       throw error;
     }
+  }
+
+  async delete(userId: string): Promise<void> {
+    await this.profiles.query(DELETE_PROFILE, [userId]);
   }
 }
 

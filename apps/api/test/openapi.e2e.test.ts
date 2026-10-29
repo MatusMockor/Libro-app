@@ -169,6 +169,10 @@ describe('OpenAPI', () => {
       document.paths['/v1/auth/google']?.post?.responses['200']?.content?.['application/json']
         ?.schema,
     ).toEqual({ $ref: '#/components/schemas/AuthSession' });
+    expect(
+      document.paths['/v1/me/deletion']?.post?.requestBody?.content['application/json']?.schema,
+    ).toEqual({ $ref: '#/components/schemas/AccountDeletionRequest' });
+    expect(document.paths['/v1/me/deletion']?.post?.responses).toHaveProperty('204');
   });
 
   test('describes the reading-sessions endpoints with their zod schemas', async ({ http }) => {

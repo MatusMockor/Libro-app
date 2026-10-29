@@ -5,6 +5,7 @@ import cliDataSource from '../src/database/data-source.js';
 
 const EXTENSIONS = ['pg_trgm', 'postgis', 'unaccent', 'vector'];
 const MODULE_TABLES = [
+  'auth.deleted_accounts',
   'auth.identities',
   'auth.refresh_tokens',
   'auth.sessions',
@@ -16,6 +17,7 @@ const MODULE_TABLES = [
   'books.works',
   'media.file_variants',
   'media.files',
+  'media.pending_file_deletions',
   'profiles.follows',
   'profiles.profiles',
   'profiles.top_books',

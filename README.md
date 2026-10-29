@@ -106,6 +106,7 @@ Scripts (run from the repository root, against `DATABASE_URL` from the root `.en
 | `pnpm db:migration:create <Name>`   | Creates an empty migration in the same folder (for data migrations or hand-written SQL)             |
 | `pnpm db:migration:check`           | Fails when the entities differ from the migrated database, i.e. a migration is missing (used in CI) |
 | `pnpm db:seed`                      | Runs all seeders (`typeorm-extension`)                                                              |
+| `pnpm accounts:purge-deleted`       | Replays `UserDeleted`, retries pending photo deletions, forgets old tombstones (run daily)          |
 
 `generate` and `create` format the new file with Prettier. Review a generated migration before committing it: every migration needs a working `down()` that fully reverts `up()`.
 
@@ -310,6 +311,7 @@ Own JWT access tokens, no auth framework (see [CLAUDE.md](CLAUDE.md#auth) for th
 | `POST /v1/auth/refresh`  | public | `{ refreshToken }`. `200` with a new session of the same sign-in, `401 invalid_refresh_token`, `400 validation_failed`, `429`         |
 | `POST /v1/auth/logout`   | public | `{ refreshToken }`. `204`, also for an unknown or already revoked token, `400 validation_failed`, `429`                               |
 | `GET /v1/me`             | token  | `200` with `{ id, email }` of the signed-in user                                                                                      |
+| `POST /v1/me/deletion`   | token  | `{ password }` or `{ provider: 'google', idToken }`. `204`, `401 invalid_credentials`, `401 identity_not_linked`, `400`, `429`        |
 
 A session is `{ "user": { "id": "...", "email": "..." }, "accessToken": "...", "tokenType": "Bearer", "expiresIn": 900, "refreshToken": "...", "refreshTokenExpiresIn": 2592000 }`.
 
@@ -341,9 +343,9 @@ export class ShelfController {
 }
 ```
 
-The access token is a JWT (HS256, signed with `JWT_ACCESS_SECRET`) valid for 15 minutes with only the claims `sub` (user id), `iss` (`libro-api`), `aud` (`libro-app`), `iat` and `exp`. A token without integer `iat` and `exp`, with `iat` in the future or with a lifetime over 15 minutes is rejected as well. The api refuses to start with a blank `JWT_ACCESS_SECRET`, and in production with one of the known non-secret values from `apps/api/src/config/non-secret-values.ts` (the `.env.example` and test values). The guard does not read the database; `GET /v1/me` answers `401 invalid_access_token` when the account of a valid token no longer exists.
+The access token is a JWT (HS256, signed with `JWT_ACCESS_SECRET`) valid for 15 minutes with only the claims `sub` (user id), `iss` (`libro-api`), `aud` (`libro-app`), `iat` and `exp`. A token without integer `iat` and `exp`, with `iat` in the future or with a lifetime over 15 minutes is rejected as well. The api refuses to start with a blank `JWT_ACCESS_SECRET`, and in production with one of the known non-secret values from `apps/api/src/config/non-secret-values.ts` (the `.env.example` and test values). After the JWT check the guard looks the user up (one primary-key `EXISTS` on `auth.users`), so every protected route answers `401 invalid_access_token` when the account of a valid token no longer exists (e.g. after `POST /v1/me/deletion`).
 
-**Rate limit.** Register, login, refresh and logout accept at most `AUTH_RATE_LIMIT_MAX` requests (default 10) per client IP and route within `AUTH_RATE_LIMIT_WINDOW_SECONDS` (default 60), invalid ones included. Above it they answer `429 too_many_requests` with `Retry-After` (seconds). The counters live in memory, per api process. The client IP is the address of the connection; behind a load balancer or reverse proxy set `TRUST_PROXY` so it comes from `X-Forwarded-For` instead, either as the exact number of proxies (`TRUST_PROXY=1`) or as a list of trusted proxy addresses (`TRUST_PROXY=loopback, 10.0.0.0/8`, IPs, CIDR ranges and the named ranges `loopback`, `linklocal`, `uniquelocal`). It is applied in `configureApp` as Express `trust proxy`; unrestricted trust (`true`) is refused at startup, because then any client could pick its own IP by sending the header.
+**Rate limit.** Register, login, refresh, logout, Google nonce and sign-in, and account deletion accept at most `AUTH_RATE_LIMIT_MAX` requests (default 10) per client IP and route within `AUTH_RATE_LIMIT_WINDOW_SECONDS` (default 60), invalid ones included. Above it they answer `429 too_many_requests` with `Retry-After` (seconds). The counters live in memory, per api process. The client IP is the address of the connection; behind a load balancer or reverse proxy set `TRUST_PROXY` so it comes from `X-Forwarded-For` instead, either as the exact number of proxies (`TRUST_PROXY=1`) or as a list of trusted proxy addresses (`TRUST_PROXY=loopback, 10.0.0.0/8`, IPs, CIDR ranges and the named ranges `loopback`, `linklocal`, `uniquelocal`). It is applied in `configureApp` as Express `trust proxy`; unrestricted trust (`true`) is refused at startup, because then any client could pick its own IP by sending the header.
 
 Calling protected endpoints locally (`pnpm dev`, api on `127.0.0.1:3000`):
 

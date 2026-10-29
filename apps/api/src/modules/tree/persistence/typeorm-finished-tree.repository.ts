@@ -19,6 +19,10 @@ const SELECT_STORED_VERSIONS = `
   WHERE user_id = $1 AND reading_id = ANY ($2::uuid[])
 `;
 
+const DELETE_FINISHED_TREES_OF_USER = `
+  DELETE FROM tree.finished_trees WHERE user_id = $1
+`;
+
 @Injectable()
 export class TypeOrmFinishedTreeRepository implements FinishedTreeRepository {
   constructor(
@@ -39,5 +43,9 @@ export class TypeOrmFinishedTreeRepository implements FinishedTreeRepository {
     >(SELECT_STORED_VERSIONS, [userId, readingIds]);
 
     return new Map(rows.map(({ readingId, treeEngineVersion }) => [readingId, treeEngineVersion]));
+  }
+
+  async deleteAllOf(userId: string): Promise<void> {
+    await this.finishedTrees.query(DELETE_FINISHED_TREES_OF_USER, [userId]);
   }
 }

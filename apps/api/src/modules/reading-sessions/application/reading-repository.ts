@@ -15,4 +15,5 @@ export type FinishOutcome =
 
 export interface ReadingRepository {
   finish(owner: ReadingOwner): Promise<FinishOutcome>;
+  deleteAllOf(userId: string): Promise<void>;
 }

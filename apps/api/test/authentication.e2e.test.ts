@@ -4,6 +4,7 @@ import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
 import { describe, expect } from 'vitest';
 import type { Env } from '../src/config/env.schema.js';
 import type { AuthenticatedUser } from '../src/http/authentication/authenticated-user.js';
+import { UserEntity } from '../src/modules/auth/persistence/user.entity.js';
 import { integrationTest } from './support/integration-test.js';
 import { ProbeModule } from './support/probe/probe.module.js';
 
@@ -98,23 +99,45 @@ describe('authentication guard', () => {
     expect(response.status).toBe(200);
   });
 
-  test('accepts a token with the expected signature and claims', async ({ http, forge }) => {
-    const userId = randomUUID();
+  test('accepts a token with the expected signature and claims', async ({
+    http,
+    forge,
+    factories,
+  }) => {
+    const { id } = await factories.get(UserEntity).save();
 
-    const response = await http.get(ROUTE).set('Authorization', `Bearer ${forge({ sub: userId })}`);
+    const response = await http.get(ROUTE).set('Authorization', `Bearer ${forge({ sub: id })}`);
 
     expect(response.status).toBe(200);
-    expect(response.body as AuthenticatedUser).toStrictEqual({ id: userId });
+    expect(response.body as AuthenticatedUser).toStrictEqual({ id });
   });
 
-  test('accepts a token that lives exactly 15 minutes', async ({ http, signExactly }) => {
+  test('accepts a token that lives exactly 15 minutes', async ({
+    http,
+    signExactly,
+    factories,
+  }) => {
+    const { id } = await factories.get(UserEntity).save();
     const iat = nowInSeconds();
 
     const response = await http
       .get(ROUTE)
-      .set('Authorization', `Bearer ${signExactly({ sub: randomUUID(), iat, exp: iat + 900 })}`);
+      .set('Authorization', `Bearer ${signExactly({ sub: id, iat, exp: iat + 900 })}`);
 
     expect(response.status).toBe(200);
+  });
+
+  test('answers 401 invalid_access_token for a valid token of a user that does not exist', async ({
+    http,
+    forge,
+  }) => {
+    const response = await http
+      .get(ROUTE)
+      .set('Authorization', `Bearer ${forge({ sub: randomUUID() })}`);
+
+    expect(response.status).toBe(401);
+    expect(response.headers['www-authenticate']).toBe('Bearer error="invalid_token"');
+    expect(response.body).toStrictEqual(INVALID_ACCESS_TOKEN);
   });
 
   test('answers 401 authentication_required without an Authorization header', async ({ http }) => {
