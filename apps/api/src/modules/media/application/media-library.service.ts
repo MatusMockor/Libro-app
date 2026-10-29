@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { MediaWithUrls } from '../domain/media.js';
-import type { MediaLibrary } from '../media-library.js';
+import { distinctIdBatch } from '../../../shared/id-batch.js';
+import { MAX_MEDIA_PER_CALL, type MediaLibrary } from '../media-library.js';
 import { MediaNotFoundException } from './media-not-found.exception.js';
 import { MEDIA_REPOSITORY, type MediaRepository } from './media-repository.js';
 import { MediaUrlsService } from './media-urls.service.js';
@@ -16,6 +17,20 @@ export class MediaLibraryService implements MediaLibrary {
     const media = await this.media.findOwned(userId, mediaId);
 
     return media ? this.urls.withUrls(media) : undefined;
+  }
+
+  async findMany(mediaIds: readonly string[]): Promise<ReadonlyMap<string, MediaWithUrls>> {
+    const distinct = distinctIdBatch(mediaIds, MAX_MEDIA_PER_CALL);
+    if (distinct.length === 0) {
+      return new Map();
+    }
+
+    const signed = new Map<string, MediaWithUrls>();
+    for (const media of await this.media.findMany(distinct)) {
+      signed.set(media.id, await this.urls.withUrls(media));
+    }
+
+    return signed;
   }
 
   async getOwned(userId: string, mediaId: string): Promise<MediaWithUrls> {

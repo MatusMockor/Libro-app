@@ -297,7 +297,7 @@ The `books` module (schema `books`) stores works (`works`), their authors in cre
 | `POST /v1/books`        | Adds a work with its authors (ordered names, one new author row per name for now) and at least one edition. `201` with the book, `409 isbn_already_exists` for a duplicate ISBN-13 |
 | `GET /v1/books/:workId` | `200` with the work, its authors in credit order and its editions (by publication year), `404 book_not_found`                                                                      |
 
-ISBN-13s are 13 digits without hyphens and must have a valid check digit. A duplicate is detected by the unique constraint, so two concurrent requests with the same ISBN-13 answer `201` and `409`. The work, its authors and editions are written in one transaction; after it committed, the module publishes `BookAddedToCatalogue` v1 (`{ workId, editionIds }`). Other modules check a work through `BOOK_CATALOGUE` (`workExists(workId)`), exported from `modules/books/index.ts` with the event. Both routes need an access token (protected by default, see [Authentication](#authentication)).
+ISBN-13s are 13 digits without hyphens and must have a valid check digit. A duplicate is detected by the unique constraint, so two concurrent requests with the same ISBN-13 answer `201` and `409`. The work, its authors and editions are written in one transaction; after it committed, the module publishes `BookAddedToCatalogue` v1 (`{ workId, editionIds }`). Other modules check works through `BOOK_CATALOGUE` (`workExists(workId)`, `findWorkSummaries(workIds)`), exported from `modules/books/index.ts` with the event. Both routes need an access token (protected by default, see [Authentication](#authentication)).
 
 ### Authentication
 

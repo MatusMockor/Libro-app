@@ -16,13 +16,16 @@ const MODULE_TABLES = [
   'books.works',
   'media.file_variants',
   'media.files',
+  'profiles.follows',
+  'profiles.profiles',
+  'profiles.top_books',
   'reading.checkpoints',
   'reading.marked_parts',
   'reading.readings',
   'reading.sessions',
   'tree.finished_trees',
 ];
-const MODULE_SCHEMAS = ['auth', 'books', 'media', 'reading', 'tree'];
+const MODULE_SCHEMAS = ['auth', 'books', 'media', 'profiles', 'reading', 'tree'];
 
 async function installedExtensions(dataSource: DataSource): Promise<string[]> {
   const rows: { extname: string }[] = await dataSource.query(
