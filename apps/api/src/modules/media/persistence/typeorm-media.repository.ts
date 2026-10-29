@@ -28,7 +28,7 @@ const INSERT_VARIANTS = `
     AS variant (name, storage_key, width, height, byte_size)
 `;
 
-const SELECT_OWNED = `
+const SELECT_MEDIA = `
   SELECT file.id,
          file.owner_id AS "ownerId",
          file.width,
@@ -46,7 +46,15 @@ const SELECT_OWNED = `
          ) AS variants
   FROM media.files AS file
   JOIN media.file_variants AS variant ON variant.file_id = file.id
+`;
+
+const SELECT_OWNED = `${SELECT_MEDIA}
   WHERE file.owner_id = $1 AND file.id = $2
+  GROUP BY file.id
+`;
+
+const SELECT_MANY = `${SELECT_MEDIA}
+  WHERE file.id = ANY ($1::uuid[])
   GROUP BY file.id
 `;
 
@@ -99,6 +107,10 @@ export class TypeOrmMediaRepository implements MediaRepository {
     const [media] = await this.files.query<StoredMedia[]>(SELECT_OWNED, [ownerId, mediaId]);
 
     return media;
+  }
+
+  findMany(mediaIds: readonly string[]): Promise<StoredMedia[]> {
+    return this.files.query<StoredMedia[]>(SELECT_MANY, [mediaIds]);
   }
 
   deleteOwned(ownerId: string, mediaId: string): Promise<readonly string[] | undefined> {

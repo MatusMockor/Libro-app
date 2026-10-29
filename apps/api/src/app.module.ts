@@ -12,6 +12,7 @@ import { AuthModule } from './modules/auth/index.js';
 import { BooksModule } from './modules/books/index.js';
 import { IdentityProvidersModule } from './modules/identity-providers/index.js';
 import { MediaModule } from './modules/media/index.js';
+import { ProfilesModule } from './modules/profiles/index.js';
 import { ReadingSessionsModule } from './modules/reading-sessions/index.js';
 import { TreeModule } from './modules/tree/index.js';
 
@@ -30,6 +31,7 @@ import { TreeModule } from './modules/tree/index.js';
     ReadingSessionsModule,
     TreeModule,
     MediaModule,
+    ProfilesModule,
   ],
 })
 export class AppModule {}

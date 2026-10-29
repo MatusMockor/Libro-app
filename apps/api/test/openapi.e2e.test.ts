@@ -299,6 +299,70 @@ describe('OpenAPI', () => {
     ]);
   });
 
+  test('describes the profiles endpoints with their zod schemas', async ({ http }) => {
+    const document = (await http.get('/docs-json')).body as OpenApiDocument;
+    const okSchema = (path: string, method = 'get') =>
+      document.paths[path]?.[method]?.responses['200']?.content?.['application/json']?.schema;
+    const pathNames = (path: string, method = 'get') =>
+      document.paths[path]?.[method]?.parameters
+        ?.filter((parameter) => parameter.in === 'path')
+        .map(({ name }) => name);
+    const queryNames = (path: string) =>
+      document.paths[path]?.get?.parameters
+        ?.filter((parameter) => parameter.in === 'query')
+        .map(({ name }) => name);
+    const profile = { $ref: '#/components/schemas/Profile' };
+    const page = { $ref: '#/components/schemas/ProfileSummaryPage' };
+
+    expect(okSchema('/v1/me/profile')).toEqual(profile);
+    expect(
+      document.paths['/v1/me/profile']?.patch?.requestBody?.content['application/json']?.schema,
+    ).toEqual({ $ref: '#/components/schemas/UpdateProfile' });
+    expect(okSchema('/v1/me/profile', 'patch')).toEqual(profile);
+    expect(okSchema('/v1/profiles')).toEqual(page);
+    expect(queryNames('/v1/profiles')).toEqual(['q', 'limit', 'offset']);
+    expect(okSchema('/v1/profiles/genres')).toEqual({
+      $ref: '#/components/schemas/ProfileGenres',
+    });
+    expect(okSchema('/v1/profiles/{userId}')).toEqual(profile);
+    expect(pathNames('/v1/profiles/{userId}')).toEqual(['userId']);
+    expect(okSchema('/v1/profiles/by-handle/{handle}')).toEqual(profile);
+    expect(pathNames('/v1/profiles/by-handle/{handle}')).toEqual(['handle']);
+    for (const list of ['followers', 'following']) {
+      expect(okSchema(`/v1/profiles/{userId}/${list}`)).toEqual(page);
+      expect(queryNames(`/v1/profiles/{userId}/${list}`)).toEqual(['limit', 'offset']);
+    }
+    expect(document.paths['/v1/profiles/{userId}/follow']?.put?.responses).toHaveProperty('204');
+    expect(document.paths['/v1/profiles/{userId}/follow']?.delete?.responses).toHaveProperty('204');
+    expect(Object.keys(document.components.schemas.Profile?.properties ?? {})).toEqual([
+      'userId',
+      'handle',
+      'displayName',
+      'bio',
+      'favouriteGenres',
+      'topBooks',
+      'avatar',
+      'followerCount',
+      'followingCount',
+      'followedByMe',
+    ]);
+    expect(Object.keys(document.components.schemas.ProfileSummary?.properties ?? {})).toEqual([
+      'userId',
+      'handle',
+      'displayName',
+      'avatar',
+      'followedByMe',
+    ]);
+    expect(Object.keys(document.components.schemas.UpdateProfile?.properties ?? {})).toEqual([
+      'handle',
+      'displayName',
+      'bio',
+      'favouriteGenres',
+      'topBookIds',
+      'avatarMediaId',
+    ]);
+  });
+
   test('requires the bearer token by default and lets public operations opt out', async ({
     http,
   }) => {
@@ -323,9 +387,19 @@ describe('OpenAPI', () => {
         operation('/v1/media', 'post'),
         operation('/v1/media/{mediaId}', 'get'),
         operation('/v1/media/{mediaId}', 'delete'),
+        operation('/v1/me/profile', 'get'),
+        operation('/v1/me/profile', 'patch'),
+        operation('/v1/profiles', 'get'),
+        operation('/v1/profiles/genres', 'get'),
+        operation('/v1/profiles/{userId}', 'get'),
+        operation('/v1/profiles/by-handle/{handle}', 'get'),
+        operation('/v1/profiles/{userId}/followers', 'get'),
+        operation('/v1/profiles/{userId}/following', 'get'),
+        operation('/v1/profiles/{userId}/follow', 'put'),
+        operation('/v1/profiles/{userId}/follow', 'delete'),
         operation('/v1/probe/protected', 'get'),
       ].map((protectedOperation) => protectedOperation?.security),
-    ).toEqual(Array.from({ length: 13 }, () => undefined));
+    ).toEqual(Array.from({ length: 23 }, () => undefined));
     expect(
       [
         operation('/health', 'get'),
