@@ -15,8 +15,10 @@ import { CheckpointEntity } from './persistence/checkpoint.entity.js';
 import { MarkedPartEntity } from './persistence/marked-part.entity.js';
 import { ReadingSessionEntity } from './persistence/reading-session.entity.js';
 import { ReadingEntity } from './persistence/reading.entity.js';
+import { TypeOrmReadingHistoryRepository } from './persistence/typeorm-reading-history.repository.js';
 import { TypeOrmReadingSessionRepository } from './persistence/typeorm-reading-session.repository.js';
 import { TypeOrmReadingRepository } from './persistence/typeorm-reading.repository.js';
+import { READING_HISTORY } from './reading-history.js';
 
 @Module({
   imports: [
@@ -37,6 +39,8 @@ import { TypeOrmReadingRepository } from './persistence/typeorm-reading.reposito
     FinishReadingService,
     { provide: READING_SESSION_REPOSITORY, useClass: TypeOrmReadingSessionRepository },
     { provide: READING_REPOSITORY, useClass: TypeOrmReadingRepository },
+    { provide: READING_HISTORY, useClass: TypeOrmReadingHistoryRepository },
   ],
+  exports: [READING_HISTORY],
 })
 export class ReadingSessionsModule {}

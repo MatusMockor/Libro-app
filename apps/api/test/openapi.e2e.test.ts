@@ -206,6 +206,44 @@ describe('OpenAPI', () => {
     ]);
   });
 
+  test('describes the tree endpoints with their zod schemas', async ({ http }) => {
+    const document = (await http.get('/docs-json')).body as OpenApiDocument;
+    const okSchema = (path: string) =>
+      document.paths[path]?.get?.responses['200']?.content?.['application/json']?.schema;
+    const queryNames = (path: string) =>
+      document.paths[path]?.get?.parameters
+        ?.filter((parameter) => parameter.in === 'query')
+        .map(({ name }) => name);
+    const page = { $ref: '#/components/schemas/ReadingTreePage' };
+
+    expect(okSchema('/v1/readings/{readingId}/tree')).toEqual({
+      $ref: '#/components/schemas/ReadingTree',
+    });
+    expect(okSchema('/v1/me/forest')).toEqual(page);
+    expect(okSchema('/v1/me/growing-trees')).toEqual(page);
+    expect(queryNames('/v1/me/forest')).toEqual(['limit', 'offset']);
+    expect(queryNames('/v1/me/growing-trees')).toEqual(['limit', 'offset']);
+    expect(Object.keys(document.components.schemas.ReadingTree?.properties ?? {})).toEqual([
+      'readingId',
+      'workId',
+      'finished',
+      'finishedAt',
+      'tree',
+    ]);
+    expect(Object.keys(document.components.schemas.TreeV1?.properties ?? {})).toEqual([
+      'treeEngineVersion',
+      'stage',
+      'growth',
+      'trunk',
+      'branches',
+      'leaves',
+      'flowers',
+      'fruits',
+      'decorations',
+      'stats',
+    ]);
+  });
+
   test('requires the bearer token by default and lets public operations opt out', async ({
     http,
   }) => {
@@ -224,9 +262,12 @@ describe('OpenAPI', () => {
         operation('/v1/books/{workId}', 'get'),
         operation('/v1/reading-sessions', 'post'),
         operation('/v1/readings/{readingId}/finish', 'post'),
+        operation('/v1/readings/{readingId}/tree', 'get'),
+        operation('/v1/me/forest', 'get'),
+        operation('/v1/me/growing-trees', 'get'),
         operation('/v1/probe/protected', 'get'),
       ].map((protectedOperation) => protectedOperation?.security),
-    ).toEqual([undefined, undefined, undefined, undefined, undefined, undefined, undefined]);
+    ).toEqual(Array.from({ length: 10 }, () => undefined));
     expect(
       [
         operation('/health', 'get'),

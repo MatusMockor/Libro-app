@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, type EntityManager } from 'typeorm';
 import { isUniqueViolation } from '../../../database/unique-violation.js';
 import { ReadingSessionAlreadyOpenException } from '../application/reading-session-already-open.exception.js';
+import { ReadingSessionLimitReachedException } from '../application/reading-session-limit-reached.exception.js';
 import type {
   NewReadingSession,
   ReadingSessionRepository,
@@ -11,6 +12,8 @@ import type {
 import {
   CHECKPOINT_STATUSES,
   MARKING_STATUSES,
+  MAX_CHECKPOINTS_PER_SESSION,
+  MAX_MARKED_PARTS_PER_SESSION,
   type Checkpoint,
   type MarkedPart,
   type NewMarkedPart,
@@ -75,12 +78,6 @@ const LOCK_SESSION_FOR_UPDATE = `
   FOR UPDATE
 `;
 
-const LOCK_SESSION_FOR_SHARE = `
-  SELECT 1 FROM reading.sessions
-  WHERE user_id = $1 AND id = $2 AND status = ANY ($3::text[])
-  FOR SHARE
-`;
-
 const TRANSITION_SESSION = `
   UPDATE reading.sessions AS session
   SET status = $2,
@@ -92,15 +89,17 @@ const TRANSITION_SESSION = `
   WHERE session.id = $1
 `;
 
-const INSERT_CHECKPOINT = `
+const INSERT_CHECKPOINT_BELOW_LIMIT = `
   INSERT INTO reading.checkpoints (session_id, page, recorded_at)
-  VALUES ($1, $2, clock_timestamp())
+  SELECT $1::uuid, $2::int, clock_timestamp()
+  WHERE (SELECT count(*) FROM reading.checkpoints WHERE session_id = $1) < $3
   RETURNING id, page, recorded_at AS "recordedAt"
 `;
 
-const INSERT_MARKED_PART = `
+const INSERT_MARKED_PART_BELOW_LIMIT = `
   INSERT INTO reading.marked_parts (session_id, kind, from_page, to_page, created_at)
-  VALUES ($1, $2, $3, $4, clock_timestamp())
+  SELECT $1::uuid, $2::text, $3::int, $4::int, clock_timestamp()
+  WHERE (SELECT count(*) FROM reading.marked_parts WHERE session_id = $1) < $5
   RETURNING id, kind, from_page AS "fromPage", to_page AS "toPage", created_at AS "createdAt"
 `;
 
@@ -160,14 +159,19 @@ export class TypeOrmReadingSessionRepository implements ReadingSessionRepository
 
   addCheckpoint(owner: SessionOwner, page: number): Promise<Checkpoint | undefined> {
     return this.sessions.manager.transaction(async (manager) => {
-      if (!(await lockSession(manager, LOCK_SESSION_FOR_SHARE, owner, CHECKPOINT_STATUSES))) {
+      if (!(await lockSession(manager, LOCK_SESSION_FOR_UPDATE, owner, CHECKPOINT_STATUSES))) {
         return undefined;
       }
 
-      const [checkpoint] = await manager.query<[Checkpoint]>(INSERT_CHECKPOINT, [
+      const [checkpoint] = await manager.query<Checkpoint[]>(INSERT_CHECKPOINT_BELOW_LIMIT, [
         owner.sessionId,
         page,
+        MAX_CHECKPOINTS_PER_SESSION,
       ]);
+      if (!checkpoint) {
+        throw new ReadingSessionLimitReachedException('checkpoints', MAX_CHECKPOINTS_PER_SESSION);
+      }
+
       return checkpoint;
     });
   }
@@ -177,16 +181,21 @@ export class TypeOrmReadingSessionRepository implements ReadingSessionRepository
     { kind, fromPage, toPage }: NewMarkedPart,
   ): Promise<MarkedPart | undefined> {
     return this.sessions.manager.transaction(async (manager) => {
-      if (!(await lockSession(manager, LOCK_SESSION_FOR_SHARE, owner, MARKING_STATUSES))) {
+      if (!(await lockSession(manager, LOCK_SESSION_FOR_UPDATE, owner, MARKING_STATUSES))) {
         return undefined;
       }
 
-      const [marked] = await manager.query<[MarkedPart]>(INSERT_MARKED_PART, [
+      const [marked] = await manager.query<MarkedPart[]>(INSERT_MARKED_PART_BELOW_LIMIT, [
         owner.sessionId,
         kind,
         fromPage,
         toPage,
+        MAX_MARKED_PARTS_PER_SESSION,
       ]);
+      if (!marked) {
+        throw new ReadingSessionLimitReachedException('marked parts', MAX_MARKED_PARTS_PER_SESSION);
+      }
+
       return marked;
     });
   }

@@ -19,6 +19,7 @@
     "seed:run": "node --import @oxc-node/core/register node_modules/typeorm-extension/bin/cli.mjs seed:run --dataSource src/database/data-source.ts --preserveFilePaths"
   },
   "dependencies": {
+    "@libro/tree-engine": "workspace:*",
     "@nestjs/common": "12.3.2",
     "@nestjs/config": "12.0.1",
     "@nestjs/core": "12.3.2",

@@ -255,3 +255,24 @@ describe('POST /v1/reading-sessions/:sessionId/marked-parts', () => {
     expect(await storedCounts(dataSource)).toMatchObject({ markedParts: 0 });
   });
 });
+
+describe('GET /v1/reading-sessions/:sessionId with arranged progress', () => {
+  test('lists checkpoints and marked parts arranged by the factory in the supplied order', async ({
+    reader,
+  }) => {
+    const session = await reader.arrangeSession({
+      checkpointPages: [30, 10, 20],
+      markedParts: [
+        { kind: 'slow', fromPage: 40, toPage: 50 },
+        { kind: 'good', fromPage: 1, toPage: 5 },
+      ],
+    });
+
+    const response = await reader.get(`${SESSIONS_ROUTE}/${session.id}`);
+    const body = response.body as ReadingSessionResponse;
+
+    expect(response.status).toBe(200);
+    expect(body.checkpoints.map(({ page }) => page)).toEqual([30, 10, 20]);
+    expect(body.markedParts.map(({ kind }) => kind)).toEqual(['slow', 'good']);
+  });
+});

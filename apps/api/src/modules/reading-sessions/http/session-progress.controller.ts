@@ -23,7 +23,7 @@ export class SessionProgressController {
   @Post('checkpoints')
   @ApiCreatedResponse({
     description:
-      'The checkpoint was recorded. An unknown session answers 404 reading_session_not_found, a session that is not active 409 reading_session_not_active',
+      'The checkpoint was recorded. An unknown session answers 404 reading_session_not_found, a session that is not active 409 reading_session_not_active, a session with 500 checkpoints 409 reading_session_limit_reached',
     standardSchema: checkpointSchema,
   })
   async addCheckpoint(
@@ -37,7 +37,7 @@ export class SessionProgressController {
   @Post('marked-parts')
   @ApiCreatedResponse({
     description:
-      'The part was marked. An unknown session answers 404 reading_session_not_found, an ended session 409 reading_session_ended',
+      'The part was marked. An unknown session answers 404 reading_session_not_found, an ended session 409 reading_session_ended, a session with 100 marked parts 409 reading_session_limit_reached',
     standardSchema: markedPartSchema,
   })
   async markPart(

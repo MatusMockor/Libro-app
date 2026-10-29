@@ -6,6 +6,10 @@ export const CHECKPOINT_STATUSES: readonly SessionStatus[] = ['active'];
 
 export const MARKING_STATUSES: readonly SessionStatus[] = ['active', 'paused'];
 
+export const MAX_CHECKPOINTS_PER_SESSION = 500;
+
+export const MAX_MARKED_PARTS_PER_SESSION = 100;
+
 export const MARKED_PART_KINDS = ['good', 'slow', 'skipped'] as const;
 
 export type MarkedPartKind = (typeof MARKED_PART_KINDS)[number];

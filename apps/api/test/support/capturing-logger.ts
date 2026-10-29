@@ -2,6 +2,7 @@ import type { LoggerService } from '@nestjs/common';
 
 export class CapturingLogger implements LoggerService {
   readonly warnings: string[] = [];
+  readonly errors: string[] = [];
 
   log(): void {}
 
@@ -9,5 +10,7 @@ export class CapturingLogger implements LoggerService {
     this.warnings.push(String(message));
   }
 
-  error(): void {}
+  error(...parts: unknown[]): void {
+    this.errors.push(parts.map(String).join('\n'));
+  }
 }

@@ -39,6 +39,7 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     volumes:
       - ./apps/api/src:/app/apps/api/src:ro
+      - ./packages/tree-engine/src:/app/packages/tree-engine/src:ro
       - ./tsconfig.base.json:/app/tsconfig.base.json:ro
       - ./apps/api/tsconfig.json:/app/apps/api/tsconfig.json:ro
       - ./apps/api/tsconfig.build.json:/app/apps/api/tsconfig.build.json:ro
@@ -73,6 +74,8 @@ services:
           path: ./package.json
         - action: rebuild
           path: ./apps/api/package.json
+        - action: rebuild
+          path: ./packages/tree-engine/package.json
         - action: rebuild
           path: ./pnpm-lock.yaml
 

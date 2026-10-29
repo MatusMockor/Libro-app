@@ -4,6 +4,7 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "strictPropertyInitialization": false,
+    "rewriteRelativeImportExtensions": true,
     "types": ["node"],
     "rootDir": ".",
     "outDir": "./dist"

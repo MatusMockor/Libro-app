@@ -5,10 +5,13 @@ import {
   Index,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   type Relation,
 } from 'typeorm';
 import type { SessionStatus } from '../domain/reading-session.js';
+import { CheckpointEntity } from './checkpoint.entity.js';
+import { MarkedPartEntity } from './marked-part.entity.js';
 import { ReadingEntity } from './reading.entity.js';
 
 export const SESSIONS_OPEN_USER_ID_KEY = 'sessions_open_user_id_key';
@@ -52,4 +55,10 @@ export class ReadingSessionEntity {
 
   @Column({ name: 'active_since', type: 'timestamptz', nullable: true })
   activeSince: Date | null;
+
+  @OneToMany(() => CheckpointEntity, (checkpoint) => checkpoint.session, { cascade: ['insert'] })
+  checkpoints?: Relation<CheckpointEntity>[];
+
+  @OneToMany(() => MarkedPartEntity, (part) => part.session, { cascade: ['insert'] })
+  markedParts?: Relation<MarkedPartEntity>[];
 }
