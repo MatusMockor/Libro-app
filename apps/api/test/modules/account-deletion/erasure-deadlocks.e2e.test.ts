@@ -13,6 +13,12 @@ import type { FollowFactoryMeta } from '../../../src/modules/profiles/factories/
 import type { ProfileFactoryMeta } from '../../../src/modules/profiles/factories/profile.factory.js';
 import { FollowEntity } from '../../../src/modules/profiles/persistence/follow.entity.js';
 import { ProfileEntity } from '../../../src/modules/profiles/persistence/profile.entity.js';
+import type { ReadingSessionFactoryMeta } from '../../../src/modules/reading-sessions/factories/reading-session.factory.js';
+import type { ReadingFactoryMeta } from '../../../src/modules/reading-sessions/factories/reading.factory.js';
+import type { SessionParticipantFactoryMeta } from '../../../src/modules/reading-sessions/factories/session-participant.factory.js';
+import { ReadingSessionEntity } from '../../../src/modules/reading-sessions/persistence/reading-session.entity.js';
+import { ReadingEntity } from '../../../src/modules/reading-sessions/persistence/reading.entity.js';
+import { SessionParticipantEntity } from '../../../src/modules/reading-sessions/persistence/session-participant.entity.js';
 import { CapturingLogger } from '../../support/capturing-logger.js';
 import { test as base } from '../../support/integration-test.js';
 import { requestsWaitingForSessionLock } from '../../support/session-lock.js';
@@ -65,6 +71,42 @@ async function arrangeMutualFollows(factories: SeederFactoryManager): Promise<vo
   await profiles.save({ userId: BEN });
   await follows.save({ followerId: ANN, followeeId: BEN });
   await follows.save({ followerId: BEN, followeeId: ANN });
+}
+
+async function endedSessionOf(
+  factories: SeederFactoryManager,
+  userId: string,
+): Promise<ReadingSessionEntity> {
+  const reading = await factories
+    .get<ReadingEntity, ReadingFactoryMeta>(ReadingEntity)
+    .save({ userId });
+
+  return factories
+    .get<ReadingSessionEntity, ReadingSessionFactoryMeta>(ReadingSessionEntity)
+    .setMeta({ reading, status: 'ended' })
+    .save();
+}
+
+async function arrangeMutualGroups(factories: SeederFactoryManager): Promise<void> {
+  const participations = factories.get<SessionParticipantEntity, SessionParticipantFactoryMeta>(
+    SessionParticipantEntity,
+  );
+  const [annHosting, benJoining] = [
+    await endedSessionOf(factories, ANN),
+    await endedSessionOf(factories, BEN),
+  ];
+  const [benHosting, annJoining] = [
+    await endedSessionOf(factories, BEN),
+    await endedSessionOf(factories, ANN),
+  ];
+  await participations.save({
+    hostSessionId: annHosting.id,
+    participantSessionId: benJoining.id,
+  });
+  await participations.save({
+    hostSessionId: benHosting.id,
+    participantSessionId: annJoining.id,
+  });
 }
 
 async function rowsOf(dataSource: DataSource, sql: string): Promise<unknown[]> {
@@ -134,6 +176,44 @@ describe('erasure handlers retry a deadlock', () => {
       { userId: BEN },
     ]);
     expect(await rowsOf(dataSource, 'SELECT 1 FROM profiles.follows')).toEqual([]);
+  });
+});
+
+describe('reading erasure and deadlocks', () => {
+  test('erases the readings of a user whose erasure deadlocked with the erasure of a group partner', async ({
+    app,
+    dataSource,
+    factories,
+    logger,
+  }) => {
+    await arrangeMutualGroups(factories);
+    const blocker = await blockerHolding(
+      dataSource,
+      'DELETE FROM reading.sessions WHERE user_id = $1',
+      BEN,
+    );
+
+    const erasure = app.get<EventBus>(EVENT_BUS).publish(UserDeleted.create({ userId: ANN }));
+    const waiting = await requestsWaitingForSessionLock(
+      dataSource,
+      1,
+      '%DELETE FROM reading.readings%',
+    );
+    const crossed = await blocker
+      .query('DELETE FROM reading.sessions WHERE user_id = $1', [ANN])
+      .then(() => 'blocker survived');
+    await blocker.commit();
+    await erasure;
+
+    expect(waiting).toBe(1);
+    expect(crossed).toBe('blocker survived');
+    expect(logger.errors).toEqual([]);
+    expect(await rowsOf(dataSource, 'SELECT user_id AS "userId" FROM reading.readings')).toEqual([
+      { userId: BEN },
+      { userId: BEN },
+    ]);
+    expect(await rowsOf(dataSource, 'SELECT 1 FROM reading.sessions')).toEqual([]);
+    expect(await rowsOf(dataSource, 'SELECT 1 FROM reading.session_participants')).toEqual([]);
   });
 });
 

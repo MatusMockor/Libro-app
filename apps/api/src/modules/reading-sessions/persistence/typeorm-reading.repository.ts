@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { DEADLOCK_RETRY_ATTEMPTS, retryOnDeadlock } from '../../../database/deadlock.js';
 import type {
   FinishOutcome,
   ReadingOwner,
@@ -70,7 +71,11 @@ export class TypeOrmReadingRepository implements ReadingRepository {
     });
   }
 
-  async deleteAllOf(userId: string): Promise<void> {
+  deleteAllOf(userId: string): Promise<void> {
+    return retryOnDeadlock(DEADLOCK_RETRY_ATTEMPTS, () => this.deleteAllInTransaction(userId));
+  }
+
+  private async deleteAllInTransaction(userId: string): Promise<void> {
     await this.readings.manager.transaction(async (manager) => {
       await manager.query(DELETE_READINGS_OF_USER, [userId]);
       await manager.query(DELETE_SESSIONS_OF_USER, [userId]);
