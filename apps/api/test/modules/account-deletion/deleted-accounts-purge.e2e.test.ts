@@ -93,6 +93,7 @@ describe('UserDeleted handlers', () => {
         'media.files',
         'profiles.profiles',
         'reading.readings',
+        'reviews.reviews',
       ]),
     );
   });

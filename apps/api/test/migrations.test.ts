@@ -28,9 +28,10 @@ const MODULE_TABLES = [
   'reading.marked_parts',
   'reading.readings',
   'reading.sessions',
+  'reviews.reviews',
   'tree.finished_trees',
 ];
-const MODULE_SCHEMAS = ['auth', 'books', 'feed', 'media', 'profiles', 'reading', 'tree'];
+const MODULE_SCHEMAS = ['auth', 'books', 'feed', 'media', 'profiles', 'reading', 'reviews', 'tree'];
 
 async function installedExtensions(dataSource: DataSource): Promise<string[]> {
   const rows: { extname: string }[] = await dataSource.query(
