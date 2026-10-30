@@ -37,18 +37,31 @@ const SELECT_VISIBLE_PAGE = `
    ${NEWEST_FIRST})
   UNION ALL
   (SELECT ${ACTIVITY_COLUMNS}
-   FROM feed.activities AS activity
-   WHERE NOT $1::boolean
-     AND activity.kind = '${POST_ACTIVITY}'
-     AND activity.actor_id = ANY ($2::uuid[])
-     AND ${BEFORE_CURSOR}
+   FROM (SELECT DISTINCT unnest($2::uuid[]) AS id) AS author
+   CROSS JOIN LATERAL (
+     SELECT *
+     FROM feed.activities AS activity
+     WHERE NOT $1::boolean
+       AND activity.actor_id = author.id
+       AND activity.kind = '${POST_ACTIVITY}'
+       AND ${BEFORE_CURSOR}
+     ORDER BY activity.created_at DESC, activity.id DESC
+     LIMIT $7
+   ) AS activity
    ${NEWEST_FIRST})
   UNION ALL
   (SELECT ${ACTIVITY_COLUMNS}
-   FROM feed.activities AS activity
-   WHERE activity.kind = ANY ($3::text[])
-     AND activity.actor_id = ANY ($4::uuid[])
-     AND ${BEFORE_CURSOR}
+   FROM (SELECT DISTINCT unnest($4::uuid[]) AS id) AS reader
+   CROSS JOIN unnest($3::text[]) AS reading_kind (kind)
+   CROSS JOIN LATERAL (
+     SELECT *
+     FROM feed.activities AS activity
+     WHERE activity.actor_id = reader.id
+       AND activity.kind = reading_kind.kind
+       AND ${BEFORE_CURSOR}
+     ORDER BY activity.created_at DESC, activity.id DESC
+     LIMIT $7
+   ) AS activity
    ${NEWEST_FIRST})
   ${NEWEST_FIRST}
 `;

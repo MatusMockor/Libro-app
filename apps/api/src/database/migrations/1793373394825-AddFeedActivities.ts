@@ -40,7 +40,7 @@ export class AddFeedActivities1793373394825 implements MigrationInterface {
             WHERE "kind" = 'post'
         `);
     await queryRunner.query(`
-            CREATE INDEX "activities_actor_id_created_at_id_idx" ON "feed"."activities" ("actor_id", "created_at", "id")
+            CREATE INDEX "activities_actor_id_kind_created_at_id_idx" ON "feed"."activities" ("actor_id", "kind", "created_at", "id")
         `);
     await queryRunner.query(`
             ALTER TABLE "profiles"."profiles"
@@ -86,7 +86,7 @@ export class AddFeedActivities1793373394825 implements MigrationInterface {
             ALTER TABLE "profiles"."profiles" DROP COLUMN "official"
         `);
     await queryRunner.query(`
-            DROP INDEX "feed"."activities_actor_id_created_at_id_idx"
+            DROP INDEX "feed"."activities_actor_id_kind_created_at_id_idx"
         `);
     await queryRunner.query(`
             DROP INDEX "feed"."activities_posts_created_at_id_idx"
