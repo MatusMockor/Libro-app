@@ -431,6 +431,49 @@ describe('OpenAPI', () => {
     ]);
   });
 
+  test('describes the reviews endpoints with their zod schemas', async ({ http }) => {
+    const document = (await http.get('/docs-json')).body as OpenApiDocument;
+    const review = document.paths['/v1/readings/{readingId}/review'];
+    const okSchema = (operation: OpenApiOperation | undefined) =>
+      operation?.responses['200']?.content?.['application/json']?.schema;
+    const queryNames = (path: string) =>
+      document.paths[path]?.get?.parameters
+        ?.filter((parameter) => parameter.in === 'query')
+        .map(({ name }) => name);
+    const page = { $ref: '#/components/schemas/ReviewPage' };
+
+    expect(review?.put?.requestBody?.content['application/json']?.schema).toEqual({
+      $ref: '#/components/schemas/WriteReview',
+    });
+    expect(okSchema(review?.put)).toEqual({ $ref: '#/components/schemas/Review' });
+    expect(okSchema(review?.get)).toEqual({ $ref: '#/components/schemas/Review' });
+    expect(review?.delete?.responses).toHaveProperty('204');
+    for (const path of ['/v1/profiles/{userId}/reviews', '/v1/books/{workId}/reviews']) {
+      expect(okSchema(document.paths[path]?.get)).toEqual(page);
+      expect(queryNames(path)).toEqual(['cursor', 'limit']);
+    }
+    expect(Object.keys(document.components.schemas.Review?.properties ?? {})).toEqual([
+      'readingId',
+      'readerId',
+      'reader',
+      'book',
+      'rating',
+      'text',
+      'finishedAt',
+      'createdAt',
+      'updatedAt',
+      'photo',
+    ]);
+    expect(Object.keys(document.components.schemas.WriteReview?.properties ?? {})).toEqual([
+      'rating',
+      'text',
+    ]);
+    expect(Object.keys(document.components.schemas.ReviewPage?.properties ?? {})).toEqual([
+      'items',
+      'nextCursor',
+    ]);
+  });
+
   test('requires the bearer token by default and lets public operations opt out', async ({
     http,
   }) => {
@@ -477,9 +520,14 @@ describe('OpenAPI', () => {
         operation('/v1/feed/following', 'get'),
         operation('/v1/feed/community', 'get'),
         operation('/v1/feed/reactions', 'get'),
+        operation('/v1/readings/{readingId}/review', 'put'),
+        operation('/v1/readings/{readingId}/review', 'get'),
+        operation('/v1/readings/{readingId}/review', 'delete'),
+        operation('/v1/profiles/{userId}/reviews', 'get'),
+        operation('/v1/books/{workId}/reviews', 'get'),
         operation('/v1/probe/protected', 'get'),
       ].map((protectedOperation) => protectedOperation?.security),
-    ).toEqual(Array.from({ length: 35 }, () => undefined));
+    ).toEqual(Array.from({ length: 40 }, () => undefined));
     expect(
       [
         operation('/health', 'get'),

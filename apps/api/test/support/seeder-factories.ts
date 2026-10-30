@@ -22,6 +22,8 @@ import { createReadingSessionFactory } from '../../src/modules/reading-sessions/
 import { createReadingFactory } from '../../src/modules/reading-sessions/factories/reading.factory.js';
 import { ReadingSessionEntity } from '../../src/modules/reading-sessions/persistence/reading-session.entity.js';
 import { ReadingEntity } from '../../src/modules/reading-sessions/persistence/reading.entity.js';
+import { createReviewFactory } from '../../src/modules/reviews/factories/review.factory.js';
+import { ReviewEntity } from '../../src/modules/reviews/persistence/review.entity.js';
 
 export function seederFactories(dataSource: DataSource): SeederFactoryManager {
   const factories = new SeederFactoryManager({ dataSource });
@@ -36,6 +38,7 @@ export function seederFactories(dataSource: DataSource): SeederFactoryManager {
   factories.set(PostEntity, createPostFactory());
   factories.set(LikeEntity, createLikeFactory());
   factories.set(ReactionEntity, createReactionFactory());
+  factories.set(ReviewEntity, createReviewFactory());
 
   return factories;
 }

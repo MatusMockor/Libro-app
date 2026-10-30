@@ -15,6 +15,7 @@ import { IdentityProvidersModule } from './modules/identity-providers/index.js';
 import { MediaModule } from './modules/media/index.js';
 import { ProfilesModule } from './modules/profiles/index.js';
 import { ReadingSessionsModule } from './modules/reading-sessions/index.js';
+import { ReviewsModule } from './modules/reviews/index.js';
 import { TreeModule } from './modules/tree/index.js';
 
 @Module({
@@ -34,6 +35,7 @@ import { TreeModule } from './modules/tree/index.js';
     MediaModule,
     ProfilesModule,
     FeedModule,
+    ReviewsModule,
   ],
 })
 export class AppModule {}

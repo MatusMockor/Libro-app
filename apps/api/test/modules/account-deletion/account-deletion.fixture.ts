@@ -39,6 +39,8 @@ import type { ReadingFactoryMeta } from '../../../src/modules/reading-sessions/f
 import type { ReadingSessionResponse } from '../../../src/modules/reading-sessions/http/reading-session.response.js';
 import { ReadingSessionEntity } from '../../../src/modules/reading-sessions/persistence/reading-session.entity.js';
 import { ReadingEntity } from '../../../src/modules/reading-sessions/persistence/reading.entity.js';
+import type { ReviewFactoryMeta } from '../../../src/modules/reviews/factories/review.factory.js';
+import { ReviewEntity } from '../../../src/modules/reviews/persistence/review.entity.js';
 import { googleSignInWith, useLocalGoogleSigningKeys } from '../../support/google-sign-in.js';
 import { integrationTest } from '../../support/integration-test.js';
 import { ManualTaskScheduler } from '../../support/manual-task-scheduler.js';
@@ -90,7 +92,8 @@ function as(http: Agent, authorization: string) {
       http.post(path).set('Authorization', authorization).send(body),
     patch: (path: string, body: object) =>
       http.patch(path).set('Authorization', authorization).send(body),
-    put: (path: string) => http.put(path).set('Authorization', authorization),
+    put: (path: string, body: object = {}) =>
+      http.put(path).set('Authorization', authorization).send(body),
     upload: (image: Buffer) =>
       http
         .post('/v1/media')
@@ -128,6 +131,14 @@ async function readBook(
   expectStatus(await user.post(`${route}/end`), 200, 'end session');
   expectStatus(await user.post(`/v1/readings/${session.readingId}/finish`), 200, 'finish');
   expectStatus(await user.get(`/v1/readings/${session.readingId}/tree`), 200, 'tree');
+  expectStatus(
+    await user.put(`/v1/readings/${session.readingId}/review`, {
+      rating: 4,
+      text: 'Kafka on a tram',
+    }),
+    200,
+    'review',
+  );
 
   return session;
 }
@@ -338,6 +349,10 @@ export async function arrangeLeftovers(
     'INSERT INTO tree.finished_trees (reading_id, user_id, tree_engine_version) VALUES ($1, $2, 1)',
     [reading.id, userId],
   );
+  await factories
+    .get<ReviewEntity, ReviewFactoryMeta>(ReviewEntity)
+    .setMeta({ readingId: reading.id, userId, workId: work.id })
+    .save();
   const media = await factories
     .get<MediaFileEntity, MediaFileFactoryMeta>(MediaFileEntity)
     .setMeta({ ownerId: userId })
