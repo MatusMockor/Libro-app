@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { Agent, Test } from 'supertest';
 import type { DataSource } from 'typeorm';
 import type { SeederFactoryManager } from 'typeorm-extension';
@@ -129,6 +130,29 @@ export async function arrangePosts(
   }
 
   return dataSource.getRepository(PostEntity).save(posts, { chunk: 500 });
+}
+
+const PRECISE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/;
+
+export async function arrangePostsAt(
+  factories: SeederFactoryManager,
+  dataSource: DataSource,
+  authorId: string,
+  times: readonly string[],
+): Promise<string[]> {
+  const factory = factories.get<PostEntity, PostFactoryMeta>(PostEntity);
+  const ids: string[] = [];
+  for (const time of times) {
+    expect(time, 'a UTC time with microseconds').toMatch(PRECISE_TIME);
+    const { text, workId, place } = await factory.make({ authorId });
+    const id = randomUUID();
+    await dataSource
+      .getRepository(PostEntity)
+      .insert({ id, authorId, text, workId, place, createdAt: () => `'${time}'::timestamptz` });
+    ids.push(id);
+  }
+
+  return ids;
 }
 
 export function hoursAgo(hours: number): Date {

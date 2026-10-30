@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { DEADLOCK_RETRY_ATTEMPTS, retryOnDeadlock } from '../../../database/deadlock.js';
 import type { FeedErasureRepository } from '../application/feed-erasure-repository.js';
 import { PostEntity } from './post.entity.js';
 
@@ -25,6 +26,10 @@ export class TypeOrmFeedErasureRepository implements FeedErasureRepository {
   constructor(@InjectRepository(PostEntity) private readonly posts: Repository<PostEntity>) {}
 
   eraseUser(userId: string): Promise<void> {
+    return retryOnDeadlock(DEADLOCK_RETRY_ATTEMPTS, () => this.eraseInTransaction(userId));
+  }
+
+  private eraseInTransaction(userId: string): Promise<void> {
     return this.posts.manager.transaction(async (manager) => {
       await manager.query(LOCK_AUTHOR, [userId]);
       for (const statement of [DELETE_LIKES, DELETE_REACTIONS, DELETE_POSTS]) {

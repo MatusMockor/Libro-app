@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import type { DataSource } from 'typeorm';
 import { describe, expect, vi } from 'vitest';
 import type { ProblemDetails } from '../../../src/http/problem-details/problem-details.schema.js';
 import type { PostEntity } from '../../../src/modules/feed/persistence/post.entity.js';
 import {
   arrangePost,
   arrangePosts,
+  arrangePostsAt,
   arrangeWork,
   COMMUNITY_ROUTE,
   FOLLOWING_ROUTE,
@@ -46,10 +46,6 @@ function newestFirst(posts: readonly PostEntity[]): string[] {
         right.createdAt.getTime() - left.createdAt.getTime() || right.id.localeCompare(left.id),
     )
     .map(({ id }) => id);
-}
-
-async function setCreatedAt(dataSource: DataSource, postId: string, at: string): Promise<void> {
-  await dataSource.query('UPDATE feed.posts SET created_at = $2 WHERE id = $1', [postId, at]);
 }
 
 describe('GET /v1/feed/following', () => {
@@ -174,16 +170,13 @@ describe('GET /v1/feed/community', () => {
   });
 
   test('keeps microsecond precision in the cursor', async ({ reader, factories, dataSource }) => {
-    const [first, second, third] = await arrangePosts(factories, dataSource, [
-      { authorId: reader.id },
-      { authorId: reader.id },
-      { authorId: reader.id },
+    const [first, second, third] = await arrangePostsAt(factories, dataSource, reader.id, [
+      '2026-10-01T10:00:00.000001Z',
+      '2026-10-01T10:00:00.000002Z',
+      '2026-10-01T10:00:00.000003Z',
     ]);
-    await setCreatedAt(dataSource, first?.id ?? '', '2026-10-01T10:00:00.000001Z');
-    await setCreatedAt(dataSource, second?.id ?? '', '2026-10-01T10:00:00.000002Z');
-    await setCreatedAt(dataSource, third?.id ?? '', '2026-10-01T10:00:00.000003Z');
 
-    expect(await everyPage(reader, COMMUNITY_ROUTE, 1)).toEqual([third?.id, second?.id, first?.id]);
+    expect(await everyPage(reader, COMMUNITY_ROUTE, 1)).toEqual([third, second, first]);
   });
 
   test('neither repeats nor skips posts when new ones arrive between pages', async ({
