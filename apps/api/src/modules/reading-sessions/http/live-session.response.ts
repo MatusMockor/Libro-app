@@ -21,6 +21,9 @@ const bookSchema = z
 
 const snapshotFields = {
   sessionId: z.uuid(),
+  readingId: z.uuid().meta({
+    description: 'The reading (read-through) of the session, for insights and congratulations',
+  }),
   place: z.string().nullable(),
   status: z.enum(SESSION_STATUSES),
   startedAt: z.iso.datetime(),
@@ -86,7 +89,7 @@ type BookResponse = z.infer<typeof bookSchema>;
 
 type SnapshotResponse = Pick<
   LiveSessionResponse,
-  'sessionId' | 'place' | 'status' | 'startedAt' | 'progressPage'
+  'sessionId' | 'readingId' | 'place' | 'status' | 'startedAt' | 'progressPage'
 >;
 
 export function toLivePageResponse({ items, nextOffset }: LivePage): LivePageResponse {
@@ -125,12 +128,20 @@ function toGroupMemberResponse(member: GroupMember): GroupMemberResponse {
 
 function toSnapshotResponse({
   sessionId,
+  readingId,
   place,
   status,
   startedAt,
   progressPage,
 }: Omit<SessionSnapshot, 'userId'>): SnapshotResponse {
-  return { sessionId, place, status, startedAt: startedAt.toISOString(), progressPage };
+  return {
+    sessionId,
+    readingId,
+    place,
+    status,
+    startedAt: startedAt.toISOString(),
+    progressPage,
+  };
 }
 
 function toBookResponse(book: WorkSummary | null): BookResponse {

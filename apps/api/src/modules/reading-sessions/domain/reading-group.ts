@@ -13,6 +13,7 @@ export interface SessionViewer {
 
 export interface SessionSnapshot {
   readonly sessionId: string;
+  readonly readingId: string;
   readonly userId: string;
   readonly place: string | null;
   readonly status: SessionStatus;

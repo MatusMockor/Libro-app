@@ -47,6 +47,7 @@ describe('GET /v1/reading-sessions/live', () => {
       items: [
         {
           sessionId: session.id,
+          readingId: session.readingId,
           host: {
             userId: host.id,
             handle: 'jana.cita',

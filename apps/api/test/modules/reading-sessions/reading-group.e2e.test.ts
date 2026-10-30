@@ -59,6 +59,7 @@ describe('GET /v1/reading-sessions/:sessionId/group', () => {
       },
       host: {
         sessionId: hostSession.id,
+        readingId: hostSession.readingId,
         reader: expect.objectContaining({ userId: host.id, handle: 'host.reader' }) as object,
         place: 'park',
         status: 'active',
@@ -67,8 +68,16 @@ describe('GET /v1/reading-sessions/:sessionId/group', () => {
         joinedAt: null,
       },
       participants: [
-        expect.objectContaining({ sessionId: firstSession.id, joinedAt: ANY_ISO_DATE }),
-        expect.objectContaining({ sessionId: secondSession.id, joinedAt: ANY_ISO_DATE }),
+        expect.objectContaining({
+          sessionId: firstSession.id,
+          readingId: firstSession.readingId,
+          joinedAt: ANY_ISO_DATE,
+        }),
+        expect.objectContaining({
+          sessionId: secondSession.id,
+          readingId: secondSession.readingId,
+          joinedAt: ANY_ISO_DATE,
+        }),
       ],
     });
     expect(await groupSeenBy(first, secondSession.id)).toEqual(group);

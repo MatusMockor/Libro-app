@@ -20,7 +20,18 @@ export interface ReadingHistoryQuery {
   readonly offset: number;
 }
 
+export interface ReadingSummary {
+  readonly readingId: string;
+  readonly userId: string;
+  readonly workId: string;
+  readonly finishedAt: Date | null;
+}
+
 export interface ReadingHistory {
   findReading(userId: string, readingId: string): Promise<ReadingWithSessions | undefined>;
+  findReadingSummary(
+    readingId: string,
+    ownerIds: readonly string[],
+  ): Promise<ReadingSummary | undefined>;
   listReadings(userId: string, query: ReadingHistoryQuery): Promise<ReadingWithSessions[]>;
 }

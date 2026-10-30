@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { EncouragementsModule } from '../encouragements/index.js';
 import { ReadingSessionsModule } from '../reading-sessions/index.js';
 import { EraseFinishedTreesHandler } from './application/erase-finished-trees.handler.js';
 import { FINISHED_TREE_REPOSITORY } from './application/finished-tree-repository.js';
@@ -11,7 +12,11 @@ import { FinishedTreeEntity } from './persistence/finished-tree.entity.js';
 import { TypeOrmFinishedTreeRepository } from './persistence/typeorm-finished-tree.repository.js';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([FinishedTreeEntity]), ReadingSessionsModule],
+  imports: [
+    TypeOrmModule.forFeature([FinishedTreeEntity]),
+    ReadingSessionsModule,
+    EncouragementsModule,
+  ],
   controllers: [TreesController],
   providers: [
     ReadingTreesService,

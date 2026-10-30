@@ -19,6 +19,10 @@ import {
 } from '../../../src/modules/auth/index.js';
 import { IdentityEntity } from '../../../src/modules/auth/persistence/identity.entity.js';
 import { WorkEntity } from '../../../src/modules/books/persistence/work.entity.js';
+import type { CongratulationFactoryMeta } from '../../../src/modules/encouragements/factories/congratulation.factory.js';
+import type { InsightFactoryMeta } from '../../../src/modules/encouragements/factories/insight.factory.js';
+import { CongratulationEntity } from '../../../src/modules/encouragements/persistence/congratulation.entity.js';
+import { InsightEntity } from '../../../src/modules/encouragements/persistence/insight.entity.js';
 import type { LikeFactoryMeta } from '../../../src/modules/feed/factories/like.factory.js';
 import type { PostFactoryMeta } from '../../../src/modules/feed/factories/post.factory.js';
 import type { ReactionFactoryMeta } from '../../../src/modules/feed/factories/reaction.factory.js';
@@ -60,6 +64,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export interface Account extends SignedInUser {
   readonly mediaIds: readonly string[];
+  readonly finishedReadingId: string;
+  readonly openReadingId: string;
   readonly readingIds: readonly string[];
   readonly sessionIds: readonly string[];
   readonly authSessionIds: readonly string[];
@@ -220,6 +226,8 @@ function arrangeAccountWith(
     return {
       ...user,
       mediaIds: [media.id],
+      finishedReadingId: finished.readingId,
+      openReadingId: open.readingId,
       readingIds: [finished.readingId, open.readingId],
       sessionIds: [finished.id, open.id],
       authSessionIds: await authSessionIdsOf(dataSource, user.id),
@@ -250,6 +258,26 @@ export async function engagesWith(
   for (const postId of authors.flatMap(({ postIds }) => postIds)) {
     expectStatus(await client.put(`/v1/posts/${postId}/like`), 204, `like ${postId}`);
     expectStatus(await client.put(`/v1/posts/${postId}/reactions/books`), 204, `react ${postId}`);
+  }
+}
+
+export async function encourages(
+  http: Agent,
+  author: { readonly authorization: string },
+  ...readers: readonly Pick<Account, 'finishedReadingId' | 'openReadingId'>[]
+): Promise<void> {
+  const client = as(http, author.authorization);
+  for (const { finishedReadingId, openReadingId } of readers) {
+    expectStatus(
+      await client.post(`/v1/readings/${openReadingId}/insights`, { text: 'Keep going' }),
+      201,
+      `insight on ${openReadingId}`,
+    );
+    expectStatus(
+      await client.put(`/v1/readings/${finishedReadingId}/congratulation`),
+      204,
+      `congratulate on ${finishedReadingId}`,
+    );
   }
 }
 
@@ -410,6 +438,14 @@ export async function arrangeLeftovers(
   await factories
     .get<ReactionEntity, ReactionFactoryMeta>(ReactionEntity)
     .setMeta({ postId: followeePost.id, userId, reaction: 'hug' })
+    .save();
+  await factories
+    .get<InsightEntity, InsightFactoryMeta>(InsightEntity)
+    .setMeta({ readingId: reading.id, readerId: userId, authorId: followeeId })
+    .save();
+  await factories
+    .get<CongratulationEntity, CongratulationFactoryMeta>(CongratulationEntity)
+    .setMeta({ readerId: followeeId, authorId: userId })
     .save();
 
   return {

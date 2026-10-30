@@ -15,6 +15,8 @@ const MODULE_TABLES = [
   'books.editions',
   'books.work_authors',
   'books.works',
+  'encouragements.congratulations',
+  'encouragements.insights',
   'feed.likes',
   'feed.posts',
   'feed.reactions',
@@ -33,7 +35,17 @@ const MODULE_TABLES = [
   'reviews.reviews',
   'tree.finished_trees',
 ];
-const MODULE_SCHEMAS = ['auth', 'books', 'feed', 'media', 'profiles', 'reading', 'reviews', 'tree'];
+const MODULE_SCHEMAS = [
+  'auth',
+  'books',
+  'encouragements',
+  'feed',
+  'media',
+  'profiles',
+  'reading',
+  'reviews',
+  'tree',
+];
 
 async function installedExtensions(dataSource: DataSource): Promise<string[]> {
   const rows: { extname: string }[] = await dataSource.query(
