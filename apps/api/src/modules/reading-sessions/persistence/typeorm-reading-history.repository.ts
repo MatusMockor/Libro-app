@@ -6,6 +6,7 @@ import type {
   EndedSession,
   ReadingHistory,
   ReadingHistoryQuery,
+  ReadingSummary,
   ReadingWithSessions,
 } from '../reading-history.js';
 import { ReadingEntity } from './reading.entity.js';
@@ -16,6 +17,12 @@ const READING_COLUMNS = `
 `;
 
 const SELECT_READING = `${READING_COLUMNS} WHERE user_id = $1 AND id = $2`;
+
+const SELECT_READING_SUMMARY = `
+  SELECT id AS "readingId", user_id AS "userId", work_id AS "workId", finished_at AS "finishedAt"
+  FROM reading.readings
+  WHERE id = $1 AND user_id = ANY ($2::uuid[])
+`;
 
 const SELECT_READINGS = `${READING_COLUMNS}
   WHERE user_id = $1 AND (finished_at IS NOT NULL) = $2
@@ -74,6 +81,18 @@ export class TypeOrmReadingHistoryRepository implements ReadingHistory {
     );
 
     return reading;
+  }
+
+  async findReadingSummary(
+    readingId: string,
+    ownerIds: readonly string[],
+  ): Promise<ReadingSummary | undefined> {
+    const [summary] = await this.readings.query<ReadingSummary[]>(SELECT_READING_SUMMARY, [
+      readingId,
+      ownerIds,
+    ]);
+
+    return summary;
   }
 
   async listReadings(

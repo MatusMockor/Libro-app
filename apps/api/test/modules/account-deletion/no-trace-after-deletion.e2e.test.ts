@@ -4,6 +4,7 @@ import { FACTORY_USER_PASSWORD } from '../../../src/modules/auth/factories/user.
 import { userTables } from '../../support/truncate-tables.js';
 import type { PostResponse } from '../../../src/modules/feed/http/post.response.js';
 import {
+  encourages,
   engagesWith,
   filesOf,
   follows,
@@ -48,6 +49,8 @@ describe('account deletion leaves no trace', () => {
     await follows(http, ben, ann);
     await engagesWith(http, ann, ben);
     await engagesWith(http, ben, ann);
+    await encourages(http, ann, ben);
+    await encourages(http, ben, ann);
 
     const withoutArrangedData = await tablesWithoutDataOf(dataSource, needlesOf(ann));
 
@@ -66,6 +69,7 @@ describe('account deletion leaves no trace', () => {
     const ben = await arrangeAccount();
     await follows(http, ann, ben);
     await engagesWith(http, ann, ben);
+    await encourages(http, ann, ben);
     await dataSource.query('CREATE TABLE public.probe_posts (author_id uuid NOT NULL)');
     onTestFinished(async () => {
       await dataSource.query('DROP TABLE public.probe_posts');
@@ -95,6 +99,8 @@ describe('account deletion leaves no trace', () => {
     await follows(http, ben, ann);
     await engagesWith(http, ann, ben);
     await engagesWith(http, ben, ann);
+    await encourages(http, ann, ben);
+    await encourages(http, ben, ann);
 
     const response = await deleteAccount(ann, { password: FACTORY_USER_PASSWORD });
     const bensPosts = await Promise.all(

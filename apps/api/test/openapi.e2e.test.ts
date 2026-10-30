@@ -266,6 +266,7 @@ describe('OpenAPI', () => {
     });
     expect(Object.keys(document.components.schemas.LiveReadingSession?.properties ?? {})).toEqual([
       'sessionId',
+      'readingId',
       'place',
       'status',
       'startedAt',
@@ -530,6 +531,54 @@ describe('OpenAPI', () => {
     ]);
   });
 
+  test('describes the encouragements endpoints with their zod schemas', async ({ http }) => {
+    const document = (await http.get('/docs-json')).body as OpenApiDocument;
+    const content = (path: string, method: string, status: string) =>
+      document.paths[path]?.[method]?.responses[status]?.content?.['application/json']?.schema;
+    const parameterNames = (path: string, method: string, location: string) =>
+      document.paths[path]?.[method]?.parameters
+        ?.filter((parameter) => parameter.in === location)
+        .map(({ name }) => name);
+    const insights = '/v1/readings/{readingId}/insights';
+    const encouragements = '/v1/readings/{readingId}/encouragements';
+
+    expect(
+      document.paths[insights]?.post?.requestBody?.content['application/json']?.schema,
+    ).toEqual({ $ref: '#/components/schemas/AddInsight' });
+    expect(content(insights, 'post', '201')).toEqual({ $ref: '#/components/schemas/Insight' });
+    expect(document.paths['/v1/insights/{insightId}']?.delete?.responses).toHaveProperty('204');
+    for (const method of ['put', 'delete']) {
+      expect(
+        document.paths['/v1/readings/{readingId}/congratulation']?.[method]?.responses,
+      ).toHaveProperty('204');
+    }
+    expect(
+      parameterNames('/v1/readings/{readingId}/congratulations/{authorId}', 'delete', 'path'),
+    ).toEqual(['readingId', 'authorId']);
+    expect(content(encouragements, 'get', '200')).toEqual({
+      $ref: '#/components/schemas/EncouragementPage',
+    });
+    expect(parameterNames(encouragements, 'get', 'query')).toEqual(['cursor', 'limit']);
+    expect(Object.keys(document.components.schemas.Insight?.properties ?? {})).toEqual([
+      'id',
+      'readingId',
+      'decorationId',
+      'authorId',
+      'author',
+      'text',
+      'createdAt',
+    ]);
+    expect(Object.keys(document.components.schemas.Encouragement?.properties ?? {})).toEqual([
+      'decorationId',
+      'kind',
+      'insightId',
+      'authorId',
+      'author',
+      'text',
+      'createdAt',
+    ]);
+  });
+
   test('requires the bearer token by default and lets public operations opt out', async ({
     http,
   }) => {
@@ -591,9 +640,15 @@ describe('OpenAPI', () => {
         operation('/v1/readings/{readingId}/review', 'delete'),
         operation('/v1/profiles/{userId}/reviews', 'get'),
         operation('/v1/books/{workId}/reviews', 'get'),
+        operation('/v1/readings/{readingId}/insights', 'post'),
+        operation('/v1/insights/{insightId}', 'delete'),
+        operation('/v1/readings/{readingId}/congratulation', 'put'),
+        operation('/v1/readings/{readingId}/congratulation', 'delete'),
+        operation('/v1/readings/{readingId}/congratulations/{authorId}', 'delete'),
+        operation('/v1/readings/{readingId}/encouragements', 'get'),
         operation('/v1/probe/protected', 'get'),
       ].map((protectedOperation) => protectedOperation?.security),
-    ).toEqual(Array.from({ length: 47 }, () => undefined));
+    ).toEqual(Array.from({ length: 53 }, () => undefined));
     expect(
       [
         operation('/health', 'get'),

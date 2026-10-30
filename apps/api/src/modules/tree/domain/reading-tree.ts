@@ -5,6 +5,7 @@ import {
   type TreeEngineVersion,
   type TreeV1,
 } from '@libro/tree-engine';
+import type { EncouragementDecoration } from '../../encouragements/index.js';
 import type { EndedSession, ReadingWithSessions } from '../../reading-sessions/index.js';
 
 const GROUP_READING_ID_PREFIX = 'group:';
@@ -31,6 +32,7 @@ export interface ReadingTreePage {
 export function growReadingTree(
   { id, workId, finishedAt, sessions }: ReadingWithSessions,
   version: TreeEngineVersion,
+  encouragements: readonly EncouragementDecoration[],
 ): ReadingTree {
   return {
     readingId: id,
@@ -41,7 +43,7 @@ export function growReadingTree(
         seed: id,
         finished: finishedAt !== null,
         sessions: sessions.map(toSessionInput),
-        decorations: groupReadingDecorations(sessions),
+        decorations: [...groupReadingDecorations(sessions), ...encouragements],
       },
       version,
     ),

@@ -5,6 +5,10 @@ import { describe, expect, onTestFinished } from 'vitest';
 import { retryOnDeadlock } from '../../../src/database/deadlock.js';
 import { EVENT_BUS, type EventBus } from '../../../src/events/event-bus.js';
 import { UserDeleted } from '../../../src/modules/auth/index.js';
+import type { CongratulationFactoryMeta } from '../../../src/modules/encouragements/factories/congratulation.factory.js';
+import type { InsightFactoryMeta } from '../../../src/modules/encouragements/factories/insight.factory.js';
+import { CongratulationEntity } from '../../../src/modules/encouragements/persistence/congratulation.entity.js';
+import { InsightEntity } from '../../../src/modules/encouragements/persistence/insight.entity.js';
 import type { LikeFactoryMeta } from '../../../src/modules/feed/factories/like.factory.js';
 import type { PostFactoryMeta } from '../../../src/modules/feed/factories/post.factory.js';
 import { LikeEntity } from '../../../src/modules/feed/persistence/like.entity.js';
@@ -107,6 +111,20 @@ async function arrangeMutualGroups(factories: SeederFactoryManager): Promise<voi
     hostSessionId: benHosting.id,
     participantSessionId: annJoining.id,
   });
+}
+
+async function arrangeMutualEncouragements(factories: SeederFactoryManager): Promise<void> {
+  const insights = factories.get<InsightEntity, InsightFactoryMeta>(InsightEntity);
+  const congratulations = factories.get<CongratulationEntity, CongratulationFactoryMeta>(
+    CongratulationEntity,
+  );
+  for (const [readerId, authorId] of [
+    [ANN, BEN],
+    [BEN, ANN],
+  ] as const) {
+    await insights.save({ readerId, authorId });
+    await congratulations.save({ readerId, authorId });
+  }
 }
 
 async function rowsOf(dataSource: DataSource, sql: string): Promise<unknown[]> {
@@ -214,6 +232,40 @@ describe('reading erasure and deadlocks', () => {
     ]);
     expect(await rowsOf(dataSource, 'SELECT 1 FROM reading.sessions')).toEqual([]);
     expect(await rowsOf(dataSource, 'SELECT 1 FROM reading.session_participants')).toEqual([]);
+  });
+});
+
+describe('encouragement erasure and deadlocks', () => {
+  test('erases the encouragements of a user whose erasure deadlocked with the erasure of a mutual encourager', async ({
+    app,
+    dataSource,
+    factories,
+    logger,
+  }) => {
+    await arrangeMutualEncouragements(factories);
+    const blocker = await blockerHolding(
+      dataSource,
+      'DELETE FROM encouragements.congratulations WHERE author_id = $1 OR reader_id = $1',
+      BEN,
+    );
+
+    const erasure = app.get<EventBus>(EVENT_BUS).publish(UserDeleted.create({ userId: ANN }));
+    const waiting = await requestsWaitingForSessionLock(
+      dataSource,
+      1,
+      '%DELETE FROM encouragements.congratulations%',
+    );
+    const crossed = await blocker
+      .query('DELETE FROM encouragements.insights WHERE author_id = $1 OR reader_id = $1', [BEN])
+      .then(() => 'blocker survived');
+    await blocker.commit();
+    await erasure;
+
+    expect(waiting).toBe(1);
+    expect(crossed).toBe('blocker survived');
+    expect(logger.errors).toEqual([]);
+    expect(await rowsOf(dataSource, 'SELECT 1 FROM encouragements.insights')).toEqual([]);
+    expect(await rowsOf(dataSource, 'SELECT 1 FROM encouragements.congratulations')).toEqual([]);
   });
 });
 

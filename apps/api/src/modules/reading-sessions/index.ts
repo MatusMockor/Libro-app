@@ -5,6 +5,7 @@ export {
   type EndedSession,
   type ReadingHistory,
   type ReadingHistoryQuery,
+  type ReadingSummary,
   type ReadingWithSessions,
 } from './reading-history.js';
 export { ReadingSessionsModule } from './reading-sessions.module.js';

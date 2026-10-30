@@ -23,6 +23,7 @@ import {
 const SELECT_LIVE_SESSIONS = `
   WITH ${VIEWER_GROUP}
   SELECT session.id AS "sessionId",
+         session.reading_id AS "readingId",
          session.user_id AS "userId",
          reading.work_id AS "workId",
          session.place,
@@ -55,6 +56,7 @@ const SELECT_GROUP_OF_SESSION = `
 const SELECT_GROUP_MEMBERS = `
   WITH ${VIEWER_GROUP}
   SELECT member.id AS "sessionId",
+         member.reading_id AS "readingId",
          member.user_id AS "userId",
          member.place,
          member.status,

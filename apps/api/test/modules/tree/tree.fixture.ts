@@ -27,6 +27,7 @@ export interface PlannedSession {
 export interface TreeReader {
   readonly id: string;
   get(path: string): Test;
+  send(method: 'post' | 'put' | 'delete', path: string, body?: object): Test;
   newReading(meta?: Omit<ReadingFactoryMeta, 'userId' | 'workId'>): Promise<ReadingEntity>;
   read(reading: ReadingEntity, session: PlannedSession): Promise<ReadingSessionResponse>;
   finish(reading: ReadingEntity): Promise<void>;
@@ -54,6 +55,8 @@ function readerOf(
   return {
     id,
     get,
+    send: (method, path, body = {}) =>
+      http[method](path).set('Authorization', authorization).send(body),
     newReading: async (meta = {}) => {
       const work = await factories.get(WorkEntity).save();
 
