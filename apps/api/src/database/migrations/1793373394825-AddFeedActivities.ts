@@ -36,7 +36,8 @@ export class AddFeedActivities1793373394825 implements MigrationInterface {
             )
         `);
     await queryRunner.query(`
-            CREATE INDEX "activities_created_at_id_idx" ON "feed"."activities" ("created_at", "id")
+            CREATE INDEX "activities_posts_created_at_id_idx" ON "feed"."activities" ("created_at", "id")
+            WHERE "kind" = 'post'
         `);
     await queryRunner.query(`
             CREATE INDEX "activities_actor_id_created_at_id_idx" ON "feed"."activities" ("actor_id", "created_at", "id")
@@ -88,7 +89,7 @@ export class AddFeedActivities1793373394825 implements MigrationInterface {
             DROP INDEX "feed"."activities_actor_id_created_at_id_idx"
         `);
     await queryRunner.query(`
-            DROP INDEX "feed"."activities_created_at_id_idx"
+            DROP INDEX "feed"."activities_posts_created_at_id_idx"
         `);
     await queryRunner.query(`
             DROP TABLE "feed"."activities"

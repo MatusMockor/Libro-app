@@ -13,23 +13,44 @@ import type { FeedPageQuery } from '../domain/feed-page.js';
 import { ActivityEntity } from './activity.entity.js';
 import { cursorPositionOf } from './cursor-position.sql.js';
 
+const ACTIVITY_COLUMNS = `
+  activity.id,
+  activity.kind,
+  activity.actor_id AS "actorId",
+  activity.post_id AS "postId",
+  activity.reading_id AS "readingId",
+  activity.work_id AS "workId",
+  activity.created_at AS "createdAt",
+  ${cursorPositionOf('activity.created_at')} AS "cursorAt"
+`;
+
+const BEFORE_CURSOR = `
+  ($5::timestamptz IS NULL OR (activity.created_at, activity.id) < ($5::timestamptz, $6::uuid))
+`;
+
+const NEWEST_FIRST = 'ORDER BY "createdAt" DESC, id DESC LIMIT $7';
+
 const SELECT_VISIBLE_PAGE = `
-  SELECT activity.id,
-         activity.kind,
-         activity.actor_id AS "actorId",
-         activity.post_id AS "postId",
-         activity.reading_id AS "readingId",
-         activity.work_id AS "workId",
-         activity.created_at AS "createdAt",
-         ${cursorPositionOf('activity.created_at')} AS "cursorAt"
-  FROM feed.activities AS activity
-  WHERE (
-      (activity.kind = '${POST_ACTIVITY}' AND ($1::boolean OR activity.actor_id = ANY ($2::uuid[])))
-      OR (activity.kind = ANY ($3::text[]) AND activity.actor_id = ANY ($4::uuid[]))
-    )
-    AND ($5::timestamptz IS NULL OR (activity.created_at, activity.id) < ($5::timestamptz, $6::uuid))
-  ORDER BY activity.created_at DESC, activity.id DESC
-  LIMIT $7
+  (SELECT ${ACTIVITY_COLUMNS}
+   FROM feed.activities AS activity
+   WHERE $1::boolean AND activity.kind = '${POST_ACTIVITY}' AND ${BEFORE_CURSOR}
+   ${NEWEST_FIRST})
+  UNION ALL
+  (SELECT ${ACTIVITY_COLUMNS}
+   FROM feed.activities AS activity
+   WHERE NOT $1::boolean
+     AND activity.kind = '${POST_ACTIVITY}'
+     AND activity.actor_id = ANY ($2::uuid[])
+     AND ${BEFORE_CURSOR}
+   ${NEWEST_FIRST})
+  UNION ALL
+  (SELECT ${ACTIVITY_COLUMNS}
+   FROM feed.activities AS activity
+   WHERE activity.kind = ANY ($3::text[])
+     AND activity.actor_id = ANY ($4::uuid[])
+     AND ${BEFORE_CURSOR}
+   ${NEWEST_FIRST})
+  ${NEWEST_FIRST}
 `;
 
 const INSERT_READING_ACTIVITY = `

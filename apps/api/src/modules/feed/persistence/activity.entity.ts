@@ -18,7 +18,9 @@ const ACTIVITY_KIND_LIST = ACTIVITY_KINDS.map((kind) => `'${kind}'`).join(', ');
 @Unique('activities_post_id_key', ['postId'])
 @Unique('activities_kind_reading_id_key', ['kind', 'readingId'])
 @Index('activities_actor_id_created_at_id_idx', ['actorId', 'createdAt', 'id'])
-@Index('activities_created_at_id_idx', ['createdAt', 'id'])
+@Index('activities_posts_created_at_id_idx', ['createdAt', 'id'], {
+  where: `"kind" = '${POST_ACTIVITY}'`,
+})
 @Check('activities_kind_check', `"kind" IN (${ACTIVITY_KIND_LIST})`)
 @Check(
   'activities_shape_check',
