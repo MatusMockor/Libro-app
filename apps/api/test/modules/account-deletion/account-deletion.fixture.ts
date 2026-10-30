@@ -373,6 +373,18 @@ export async function arrangeLeftovers(
     'INSERT INTO tree.finished_trees (reading_id, user_id, tree_engine_version) VALUES ($1, $2, 1)',
     [reading.id, userId],
   );
+  await dataSource.query(
+    `INSERT INTO reading.sharing_settings (user_id, live_sessions) VALUES ($1, 'nobody')`,
+    [userId],
+  );
+  const companion = await factories
+    .get<ReadingSessionEntity, ReadingSessionFactoryMeta>(ReadingSessionEntity)
+    .setMeta({ status: 'ended' })
+    .save();
+  await factories
+    .get<SessionParticipantEntity, SessionParticipantFactoryMeta>(SessionParticipantEntity)
+    .setMeta({ hostSessionId: session.id, participantSessionId: companion.id })
+    .save();
   await factories
     .get<ReviewEntity, ReviewFactoryMeta>(ReviewEntity)
     .setMeta({ readingId: reading.id, userId, workId: work.id })
