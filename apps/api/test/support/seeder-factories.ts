@@ -20,8 +20,10 @@ import { FollowEntity } from '../../src/modules/profiles/persistence/follow.enti
 import { ProfileEntity } from '../../src/modules/profiles/persistence/profile.entity.js';
 import { createReadingSessionFactory } from '../../src/modules/reading-sessions/factories/reading-session.factory.js';
 import { createReadingFactory } from '../../src/modules/reading-sessions/factories/reading.factory.js';
+import { createSessionParticipantFactory } from '../../src/modules/reading-sessions/factories/session-participant.factory.js';
 import { ReadingSessionEntity } from '../../src/modules/reading-sessions/persistence/reading-session.entity.js';
 import { ReadingEntity } from '../../src/modules/reading-sessions/persistence/reading.entity.js';
+import { SessionParticipantEntity } from '../../src/modules/reading-sessions/persistence/session-participant.entity.js';
 import { createReviewFactory } from '../../src/modules/reviews/factories/review.factory.js';
 import { ReviewEntity } from '../../src/modules/reviews/persistence/review.entity.js';
 
@@ -32,6 +34,7 @@ export function seederFactories(dataSource: DataSource): SeederFactoryManager {
   factories.set(IdentityEntity, createIdentityFactory());
   factories.set(ReadingEntity, createReadingFactory());
   factories.set(ReadingSessionEntity, createReadingSessionFactory());
+  factories.set(SessionParticipantEntity, createSessionParticipantFactory());
   factories.set(MediaFileEntity, createMediaFileFactory());
   factories.set(ProfileEntity, createProfileFactory());
   factories.set(FollowEntity, createFollowFactory());

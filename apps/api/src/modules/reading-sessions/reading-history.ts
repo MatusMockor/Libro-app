@@ -7,6 +7,7 @@ export interface EndedSession {
   readonly activeSeconds: number;
   readonly checkpoints: readonly { readonly page: number }[];
   readonly markedParts: readonly NewMarkedPart[];
+  readonly groupHostSessionIds: readonly string[];
 }
 
 export interface ReadingWithSessions extends Reading {

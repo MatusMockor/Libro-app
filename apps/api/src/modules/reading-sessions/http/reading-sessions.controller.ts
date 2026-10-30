@@ -1,11 +1,18 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query } from '@nestjs/common';
 import { ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import type { AuthenticatedUser } from '../../../http/authentication/authenticated-user.js';
 import { CurrentUser } from '../../../http/authentication/current-user.decorator.js';
+import { LiveSessionsService } from '../application/live-sessions.service.js';
 import { SessionLookupService } from '../application/session-lookup.service.js';
 import { SessionTransitionService } from '../application/session-transition.service.js';
 import { StartSessionService } from '../application/start-session.service.js';
 import type { SessionTransition } from '../domain/session-transition.js';
+import {
+  livePageSchema,
+  toLivePageResponse,
+  type LivePageResponse,
+} from './live-session.response.js';
+import { livePageQuerySchema, type LivePageRequest } from './live-sessions.request.js';
 import {
   readingSessionSchema,
   toReadingSessionResponse,
@@ -25,6 +32,7 @@ export class ReadingSessionsController {
     private readonly starter: StartSessionService,
     private readonly lookup: SessionLookupService,
     private readonly transitions: SessionTransitionService,
+    private readonly liveSessions: LiveSessionsService,
   ) {}
 
   @Post()
@@ -48,6 +56,19 @@ export class ReadingSessionsController {
   })
   async current(@CurrentUser() { id }: AuthenticatedUser): Promise<ReadingSessionResponse> {
     return toReadingSessionResponse(await this.lookup.current(id));
+  }
+
+  @Get('live')
+  @ApiOkResponse({
+    description:
+      'Open (active or paused) sessions of the people you follow that you may see, most recently started first. A reader who shares live sessions with nobody is left out unless you read in the same reading group',
+    standardSchema: livePageSchema,
+  })
+  async live(
+    @CurrentUser() { id }: AuthenticatedUser,
+    @Query({ schema: livePageQuerySchema }) page: LivePageRequest,
+  ): Promise<LivePageResponse> {
+    return toLivePageResponse(await this.liveSessions.list(id, page));
   }
 
   @Get(':sessionId')

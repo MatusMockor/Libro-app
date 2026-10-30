@@ -46,6 +46,7 @@ describe('a reading from the first session to the finished book', () => {
       activeSeconds: expect.any(Number) as number,
       checkpoints: [checkpoint],
       markedParts: [part],
+      groupHostSessionId: null,
     });
     expect(finished.status).toBe(200);
     expect(finished.headers['content-type']).toMatch(/^application\/json/);

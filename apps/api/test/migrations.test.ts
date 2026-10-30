@@ -27,7 +27,9 @@ const MODULE_TABLES = [
   'reading.checkpoints',
   'reading.marked_parts',
   'reading.readings',
+  'reading.session_participants',
   'reading.sessions',
+  'reading.sharing_settings',
   'reviews.reviews',
   'tree.finished_trees',
 ];

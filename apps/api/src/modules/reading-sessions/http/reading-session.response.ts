@@ -37,6 +37,10 @@ export const readingSessionSchema = z
     activeSeconds: z.int().meta({ description: 'Seconds read so far, pauses excluded' }),
     checkpoints: z.array(checkpointSchema),
     markedParts: z.array(markedPartSchema),
+    groupHostSessionId: z.uuid().nullable().meta({
+      description:
+        'The host session of the reading group this open session reads in (its own id for a host with participants); null when it reads alone',
+    }),
   })
   .meta({ id: 'ReadingSession' });
 
@@ -70,5 +74,6 @@ export function toReadingSessionResponse(session: ReadingSession): ReadingSessio
     activeSeconds: session.activeSeconds,
     checkpoints: session.checkpoints.map(toCheckpointResponse),
     markedParts: session.markedParts.map(toMarkedPartResponse),
+    groupHostSessionId: session.groupHostSessionId,
   };
 }
