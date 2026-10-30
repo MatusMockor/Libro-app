@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import type { MediaVariantUrl } from '../../media/index.js';
+import { mediaPhotoFields, toMediaPhotoResponse } from '../../media/index.js';
 import type { ReviewPage } from '../domain/review-page.js';
-import type { Review, ReviewPhoto } from '../domain/review.js';
+import type { Review } from '../domain/review.js';
 import { encodeCursor } from './review-cursor.js';
 import { reviewReaderSchema, toReviewReaderResponse } from './review-reader.response.js';
 
@@ -13,27 +13,7 @@ const bookSchema = z
   })
   .meta({ id: 'ReviewBook' });
 
-const photoVariantSchema = z.object({
-  url: z.url().meta({ description: 'Signed URL of the WebP file, valid until urlsExpireAt' }),
-  width: z.int(),
-  height: z.int(),
-});
-
-const photoSchema = z
-  .object({
-    mediaId: z.uuid(),
-    width: z.int().meta({ description: 'Width of the large variant' }),
-    height: z.int().meta({ description: 'Height of the large variant' }),
-    variants: z.object({
-      small: photoVariantSchema.meta({ description: 'Longer side at most 256 px' }),
-      medium: photoVariantSchema.meta({ description: 'Longer side at most 1080 px' }),
-      large: photoVariantSchema.meta({ description: 'Longer side at most 2048 px' }),
-    }),
-    urlsExpireAt: z.iso.datetime().meta({
-      description: 'When the variant URLs stop working; fetch the review again for fresh URLs',
-    }),
-  })
-  .meta({ id: 'ReviewPhoto' });
+const photoSchema = z.object(mediaPhotoFields('review')).meta({ id: 'ReviewPhoto' });
 
 export const reviewSchema = z
   .object({
@@ -85,7 +65,7 @@ export function toReviewResponse(review: Review): ReviewResponse {
     finishedAt: review.finishedAt.toISOString(),
     createdAt: review.createdAt.toISOString(),
     updatedAt: review.updatedAt.toISOString(),
-    photo: review.photo && toPhotoResponse(review.photo),
+    photo: review.photo && toMediaPhotoResponse(review.photo),
   };
 }
 
@@ -94,30 +74,4 @@ export function toReviewPageResponse({
   nextCursor,
 }: ReviewPage<Review>): ReviewPageResponse {
   return { items: items.map(toReviewResponse), nextCursor: encodeCursor(nextCursor) };
-}
-
-type PhotoResponse = z.infer<typeof photoSchema>;
-
-function toPhotoResponse({
-  id,
-  width,
-  height,
-  variants,
-  urlsExpireAt,
-}: ReviewPhoto): PhotoResponse {
-  return {
-    mediaId: id,
-    width,
-    height,
-    variants: {
-      small: toVariantResponse(variants.small),
-      medium: toVariantResponse(variants.medium),
-      large: toVariantResponse(variants.large),
-    },
-    urlsExpireAt: urlsExpireAt.toISOString(),
-  };
-}
-
-function toVariantResponse({ url, width, height }: MediaVariantUrl): MediaVariantUrl {
-  return { url, width, height };
 }

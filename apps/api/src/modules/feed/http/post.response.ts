@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import type { MediaVariantUrl } from '../../media/index.js';
+import { mediaPhotoFields, toMediaPhotoResponse } from '../../media/index.js';
 import type { FeedPage } from '../domain/feed-page.js';
 import type { Post } from '../domain/post.js';
-import { MAX_POST_PHOTOS, type PostPhoto } from '../domain/post-photo.js';
+import { MAX_POST_PHOTOS } from '../domain/post-photo.js';
 import { encodeCursor } from './feed-cursor.js';
 import { feedProfileSchema, toFeedProfileResponse } from './profile-summary.response.js';
 import { reactionEmojiSchema, reactionKeySchema, reactionOf } from './reaction-fields.schema.js';
@@ -24,27 +24,7 @@ const reactionCountSchema = z
   })
   .meta({ id: 'PostReactionCount' });
 
-const photoVariantSchema = z.object({
-  url: z.url().meta({ description: 'Signed URL of the WebP file, valid until urlsExpireAt' }),
-  width: z.int(),
-  height: z.int(),
-});
-
-const photoSchema = z
-  .object({
-    mediaId: z.uuid(),
-    width: z.int().meta({ description: 'Width of the large variant' }),
-    height: z.int().meta({ description: 'Height of the large variant' }),
-    variants: z.object({
-      small: photoVariantSchema.meta({ description: 'Longer side at most 256 px' }),
-      medium: photoVariantSchema.meta({ description: 'Longer side at most 1080 px' }),
-      large: photoVariantSchema.meta({ description: 'Longer side at most 2048 px' }),
-    }),
-    urlsExpireAt: z.iso.datetime().meta({
-      description: 'When the variant URLs stop working; fetch the post again for fresh URLs',
-    }),
-  })
-  .meta({ id: 'PostPhoto' });
+const photoSchema = z.object(mediaPhotoFields('post')).meta({ id: 'PostPhoto' });
 
 export const postSchema = z
   .object({
@@ -105,30 +85,10 @@ export function toPostResponse(post: Post): PostResponse {
       count,
       reactedByMe,
     })),
-    photos: post.photos.map(toPhotoResponse),
+    photos: post.photos.map(toMediaPhotoResponse),
   };
 }
 
 export function toPostPageResponse({ items, nextCursor }: FeedPage<Post>): PostPageResponse {
   return { items: items.map(toPostResponse), nextCursor: encodeCursor(nextCursor) };
-}
-
-type PhotoResponse = z.infer<typeof photoSchema>;
-
-function toPhotoResponse({ id, width, height, variants, urlsExpireAt }: PostPhoto): PhotoResponse {
-  return {
-    mediaId: id,
-    width,
-    height,
-    variants: {
-      small: toVariantResponse(variants.small),
-      medium: toVariantResponse(variants.medium),
-      large: toVariantResponse(variants.large),
-    },
-    urlsExpireAt: urlsExpireAt.toISOString(),
-  };
-}
-
-function toVariantResponse({ url, width, height }: MediaVariantUrl): MediaVariantUrl {
-  return { url, width, height };
 }

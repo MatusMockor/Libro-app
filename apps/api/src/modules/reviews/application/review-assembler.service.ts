@@ -1,12 +1,18 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { BOOK_CATALOGUE, type BookCatalogue, type WorkSummary } from '../../books/index.js';
-import { MEDIA_LIBRARY, type MediaLibrary, type MediaWithUrls } from '../../media/index.js';
+import {
+  MEDIA_LIBRARY,
+  toMediaPhoto,
+  type MediaLibrary,
+  type MediaPhoto,
+  type MediaWithUrls,
+} from '../../media/index.js';
 import {
   PROFILE_DIRECTORY,
   type ProfileDirectory,
   type ProfileSummary,
 } from '../../profiles/index.js';
-import type { Review, ReviewPhoto, StoredReview } from '../domain/review.js';
+import type { Review, StoredReview } from '../domain/review.js';
 
 interface ReviewReferences {
   readonly readers: ReadonlyMap<string, ProfileSummary>;
@@ -71,13 +77,8 @@ function assemble(stored: StoredReview, { readers, works, photos }: ReviewRefere
 function photoOf(
   mediaId: string | null,
   photos: ReadonlyMap<string, MediaWithUrls>,
-): ReviewPhoto | null {
+): MediaPhoto | null {
   const media = mediaId === null ? undefined : photos.get(mediaId);
-  if (!media) {
-    return null;
-  }
 
-  const { id, width, height, variants, urlsExpireAt } = media;
-
-  return { id, width, height, variants, urlsExpireAt };
+  return media ? toMediaPhoto(media) : null;
 }

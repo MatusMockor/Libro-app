@@ -1,6 +1,6 @@
 import type { WorkSummary } from '../../books/index.js';
+import type { MediaPhoto } from '../../media/index.js';
 import type { ProfileSummary } from '../../profiles/index.js';
-import type { PostPhoto } from './post-photo.js';
 import type { ReactionKey } from './reactions.js';
 
 export interface NewPost {
@@ -34,5 +34,5 @@ export interface StoredPost {
 export interface Post extends Omit<StoredPost, 'workId' | 'photoIds'> {
   readonly author: ProfileSummary | null;
   readonly book: WorkSummary | null;
-  readonly photos: readonly PostPhoto[];
+  readonly photos: readonly MediaPhoto[];
 }

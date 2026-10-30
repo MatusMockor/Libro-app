@@ -1,13 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { BOOK_CATALOGUE, type BookCatalogue, type WorkSummary } from '../../books/index.js';
-import type { MediaWithUrls } from '../../media/index.js';
+import { toMediaPhoto, type MediaWithUrls } from '../../media/index.js';
 import {
   PROFILE_DIRECTORY,
   type ProfileDirectory,
   type ProfileSummary,
 } from '../../profiles/index.js';
 import type { Post, StoredPost } from '../domain/post.js';
-import type { PostPhoto } from '../domain/post-photo.js';
 import { inReactionOrder } from '../domain/reactions.js';
 import { PostPhotosService } from './post-photos.service.js';
 
@@ -67,10 +66,6 @@ function assemble(
     photos: photoIds
       .map((mediaId) => references.photos.get(mediaId))
       .filter((media): media is MediaWithUrls => media !== undefined)
-      .map(toPostPhoto),
+      .map(toMediaPhoto),
   };
-}
-
-function toPostPhoto({ id, width, height, variants, urlsExpireAt }: MediaWithUrls): PostPhoto {
-  return { id, width, height, variants, urlsExpireAt };
 }
