@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { DEADLOCK_RETRY_ATTEMPTS, retryOnDeadlock } from '../../../database/deadlock.js';
 import { isUniqueViolation } from '../../../database/unique-violation.js';
 import { HandleTakenException } from '../application/handle-taken.exception.js';
 import type { ProfileCreation, ProfileRepository } from '../application/profile-repository.js';
@@ -135,7 +136,9 @@ export class TypeOrmProfileRepository implements ProfileRepository {
   }
 
   async delete(userId: string): Promise<void> {
-    await this.profiles.query(DELETE_PROFILE, [userId]);
+    await retryOnDeadlock(DEADLOCK_RETRY_ATTEMPTS, () =>
+      this.profiles.query(DELETE_PROFILE, [userId]),
+    );
   }
 }
 

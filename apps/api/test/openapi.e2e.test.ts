@@ -367,6 +367,70 @@ describe('OpenAPI', () => {
     ]);
   });
 
+  test('describes the feed endpoints with their zod schemas', async ({ http }) => {
+    const document = (await http.get('/docs-json')).body as OpenApiDocument;
+    const content = (path: string, method: string, status: string) =>
+      document.paths[path]?.[method]?.responses[status]?.content?.['application/json']?.schema;
+    const parameterNames = (path: string, method: string, location: string) =>
+      document.paths[path]?.[method]?.parameters
+        ?.filter((parameter) => parameter.in === location)
+        .map(({ name }) => name);
+    const post = { $ref: '#/components/schemas/Post' };
+    const page = { $ref: '#/components/schemas/PostPage' };
+
+    expect(
+      document.paths['/v1/posts']?.post?.requestBody?.content['application/json']?.schema,
+    ).toEqual({ $ref: '#/components/schemas/CreatePost' });
+    expect(content('/v1/posts', 'post', '201')).toEqual(post);
+    expect(content('/v1/posts', 'get', '200')).toEqual(page);
+    expect(parameterNames('/v1/posts', 'get', 'query')).toEqual(['authorId', 'cursor', 'limit']);
+    expect(content('/v1/posts/{postId}', 'get', '200')).toEqual(post);
+    expect(parameterNames('/v1/posts/{postId}', 'get', 'path')).toEqual(['postId']);
+    expect(document.paths['/v1/posts/{postId}']?.delete?.responses).toHaveProperty('204');
+    for (const method of ['put', 'delete']) {
+      expect(document.paths['/v1/posts/{postId}/like']?.[method]?.responses).toHaveProperty('204');
+      expect(
+        document.paths['/v1/posts/{postId}/reactions/{reaction}']?.[method]?.responses,
+      ).toHaveProperty('204');
+      expect(parameterNames('/v1/posts/{postId}/reactions/{reaction}', method, 'path')).toEqual([
+        'postId',
+        'reaction',
+      ]);
+    }
+    expect(content('/v1/posts/{postId}/reactions', 'get', '200')).toEqual({
+      $ref: '#/components/schemas/PostReactionPage',
+    });
+    expect(parameterNames('/v1/posts/{postId}/reactions', 'get', 'query')).toEqual([
+      'cursor',
+      'limit',
+    ]);
+    for (const feed of ['following', 'community']) {
+      expect(content(`/v1/feed/${feed}`, 'get', '200')).toEqual(page);
+      expect(parameterNames(`/v1/feed/${feed}`, 'get', 'query')).toEqual(['cursor', 'limit']);
+    }
+    expect(content('/v1/feed/reactions', 'get', '200')).toEqual({
+      $ref: '#/components/schemas/FeedReactions',
+    });
+    expect(Object.keys(document.components.schemas.Post?.properties ?? {})).toEqual([
+      'id',
+      'authorId',
+      'author',
+      'text',
+      'book',
+      'place',
+      'createdAt',
+      'likeCount',
+      'likedByMe',
+      'reactions',
+      'photos',
+    ]);
+    expect(Object.keys(document.components.schemas.CreatePost?.properties ?? {})).toEqual([
+      'text',
+      'workId',
+      'place',
+    ]);
+  });
+
   test('requires the bearer token by default and lets public operations opt out', async ({
     http,
   }) => {
@@ -401,9 +465,21 @@ describe('OpenAPI', () => {
         operation('/v1/profiles/{userId}/following', 'get'),
         operation('/v1/profiles/{userId}/follow', 'put'),
         operation('/v1/profiles/{userId}/follow', 'delete'),
+        operation('/v1/posts', 'post'),
+        operation('/v1/posts', 'get'),
+        operation('/v1/posts/{postId}', 'get'),
+        operation('/v1/posts/{postId}', 'delete'),
+        operation('/v1/posts/{postId}/like', 'put'),
+        operation('/v1/posts/{postId}/like', 'delete'),
+        operation('/v1/posts/{postId}/reactions', 'get'),
+        operation('/v1/posts/{postId}/reactions/{reaction}', 'put'),
+        operation('/v1/posts/{postId}/reactions/{reaction}', 'delete'),
+        operation('/v1/feed/following', 'get'),
+        operation('/v1/feed/community', 'get'),
+        operation('/v1/feed/reactions', 'get'),
         operation('/v1/probe/protected', 'get'),
       ].map((protectedOperation) => protectedOperation?.security),
-    ).toEqual(Array.from({ length: 23 }, () => undefined));
+    ).toEqual(Array.from({ length: 35 }, () => undefined));
     expect(
       [
         operation('/health', 'get'),
