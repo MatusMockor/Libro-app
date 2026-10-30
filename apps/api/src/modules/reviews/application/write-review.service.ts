@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { EVENT_BUS, type EventBus } from '../../../events/event-bus.js';
+import { MEDIA_LIBRARY, MediaNotFoundException, type MediaLibrary } from '../../media/index.js';
 import {
   READING_HISTORY,
   ReadingNotFoundException,
@@ -16,12 +17,14 @@ export class WriteReviewService {
   constructor(
     @Inject(READING_HISTORY) private readonly history: ReadingHistory,
     @Inject(REVIEW_REPOSITORY) private readonly reviews: ReviewRepository,
+    @Inject(MEDIA_LIBRARY) private readonly media: MediaLibrary,
     @Inject(EVENT_BUS) private readonly events: EventBus,
     private readonly assembler: ReviewAssemblerService,
   ) {}
 
   async write(userId: string, readingId: string, draft: ReviewDraft): Promise<Review> {
     const review = await this.newReview(userId, readingId, draft);
+    await this.ensurePhotoOwned(userId, draft.photoMediaId);
     const saved = await this.reviews.save(review);
     if (!saved) {
       throw new ReadingNotFoundException();
@@ -34,6 +37,14 @@ export class WriteReviewService {
     }
 
     return this.assembler.review(userId, saved.review);
+  }
+
+  private async ensurePhotoOwned(userId: string, mediaId: string | null): Promise<void> {
+    if (mediaId === null || (await this.media.findOwned(userId, mediaId))) {
+      return;
+    }
+
+    throw new MediaNotFoundException(mediaId);
   }
 
   private async newReview(

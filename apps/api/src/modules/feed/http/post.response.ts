@@ -1,6 +1,8 @@
 import { z } from 'zod';
+import { mediaPhotoFields, toMediaPhotoResponse } from '../../media/index.js';
 import type { FeedPage } from '../domain/feed-page.js';
 import type { Post } from '../domain/post.js';
+import { MAX_POST_PHOTOS } from '../domain/post-photo.js';
 import { encodeCursor } from './feed-cursor.js';
 import { feedProfileSchema, toFeedProfileResponse } from './profile-summary.response.js';
 import { reactionEmojiSchema, reactionKeySchema, reactionOf } from './reaction-fields.schema.js';
@@ -22,6 +24,8 @@ const reactionCountSchema = z
   })
   .meta({ id: 'PostReactionCount' });
 
+const photoSchema = z.object(mediaPhotoFields('post')).meta({ id: 'PostPhoto' });
+
 export const postSchema = z
   .object({
     id: z.uuid(),
@@ -29,7 +33,9 @@ export const postSchema = z
     author: feedProfileSchema.nullable().meta({
       description: 'The profile of the author; null when the author has no profile',
     }),
-    text: z.string(),
+    text: z
+      .string()
+      .meta({ description: 'What the author wrote; empty for a post with only photos' }),
     book: bookSchema.nullable().meta({ description: 'The book the post is about' }),
     place: z.string().nullable(),
     createdAt: z.iso.datetime(),
@@ -39,9 +45,9 @@ export const postSchema = z
       description:
         'The reactions the post got, in the order of GET /v1/feed/reactions; unused ones are left out',
     }),
-    photos: z
-      .array(z.never())
-      .meta({ description: 'Photos of the post; always empty until photo posts arrive' }),
+    photos: z.array(photoSchema).meta({
+      description: `At most ${String(MAX_POST_PHOTOS)} photos in the order the author chose; a deleted photo is left out`,
+    }),
   })
   .meta({ id: 'Post' });
 
@@ -64,7 +70,7 @@ export function toPostResponse(post: Post): PostResponse {
     id: post.id,
     authorId: post.authorId,
     author: toFeedProfileResponse(post.author),
-    text: post.text,
+    text: post.text ?? '',
     book: post.book && {
       id: post.book.id,
       title: post.book.title,
@@ -79,7 +85,7 @@ export function toPostResponse(post: Post): PostResponse {
       count,
       reactedByMe,
     })),
-    photos: [],
+    photos: post.photos.map(toMediaPhotoResponse),
   };
 }
 

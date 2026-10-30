@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BooksModule } from '../books/index.js';
+import { MediaModule } from '../media/index.js';
 import { ProfilesModule } from '../profiles/index.js';
 import { ReadingSessionsModule } from '../reading-sessions/index.js';
 import { DeleteReviewService } from './application/delete-review.service.js';
@@ -22,6 +23,7 @@ import { TypeOrmReviewRepository } from './persistence/typeorm-review.repository
     ReadingSessionsModule,
     ProfilesModule,
     BooksModule,
+    MediaModule,
   ],
   controllers: [ReviewsController, ReviewListsController],
   providers: [

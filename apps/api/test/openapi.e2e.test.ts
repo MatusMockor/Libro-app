@@ -4,13 +4,15 @@ import { ProbeModule } from './support/probe/probe.module.js';
 
 const test = integrationTest({ imports: [ProbeModule] });
 
+const PHOTO_PROPERTIES = ['mediaId', 'width', 'height', 'variants', 'urlsExpireAt'];
+
 type SecurityRequirement = Record<string, string[]>;
 
 interface OpenApiDocument {
   paths: Record<string, Record<string, OpenApiOperation>>;
   security?: SecurityRequirement[];
   components: {
-    schemas: Record<string, { properties?: Record<string, unknown> }>;
+    schemas: Record<string, { properties?: Record<string, unknown>; required?: string[] }>;
     securitySchemes?: Record<string, unknown>;
   };
 }
@@ -485,7 +487,16 @@ describe('OpenAPI', () => {
       'text',
       'workId',
       'place',
+      'photoIds',
     ]);
+    expect(document.components.schemas.CreatePost?.required ?? []).toEqual([]);
+    expect(document.components.schemas.Post?.properties?.photos).toMatchObject({
+      type: 'array',
+      items: { $ref: '#/components/schemas/PostPhoto' },
+    });
+    expect(Object.keys(document.components.schemas.PostPhoto?.properties ?? {})).toEqual(
+      PHOTO_PROPERTIES,
+    );
   });
 
   test('describes the reviews endpoints with their zod schemas', async ({ http }) => {
@@ -524,7 +535,15 @@ describe('OpenAPI', () => {
     expect(Object.keys(document.components.schemas.WriteReview?.properties ?? {})).toEqual([
       'rating',
       'text',
+      'photoId',
     ]);
+    expect(document.components.schemas.Review?.properties?.photo).toMatchObject({
+      nullable: true,
+      allOf: [{ $ref: '#/components/schemas/ReviewPhoto' }],
+    });
+    expect(Object.keys(document.components.schemas.ReviewPhoto?.properties ?? {})).toEqual(
+      PHOTO_PROPERTIES,
+    );
     expect(Object.keys(document.components.schemas.ReviewPage?.properties ?? {})).toEqual([
       'items',
       'nextCursor',

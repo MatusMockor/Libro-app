@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { mediaPhotoFields, toMediaPhotoResponse } from '../../media/index.js';
 import type { ReviewPage } from '../domain/review-page.js';
 import type { Review } from '../domain/review.js';
 import { encodeCursor } from './review-cursor.js';
@@ -11,6 +12,8 @@ const bookSchema = z
     authors: z.array(z.object({ id: z.uuid(), name: z.string() })),
   })
   .meta({ id: 'ReviewBook' });
+
+const photoSchema = z.object(mediaPhotoFields('review')).meta({ id: 'ReviewPhoto' });
 
 export const reviewSchema = z
   .object({
@@ -27,9 +30,9 @@ export const reviewSchema = z
     finishedAt: z.iso.datetime(),
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
-    photo: z
-      .null()
-      .meta({ description: 'Photo of the finished book; always null until photos arrive' }),
+    photo: photoSchema.nullable().meta({
+      description: 'Photo of the finished book; null without one or once the photo was deleted',
+    }),
   })
   .meta({ id: 'Review' });
 
@@ -62,7 +65,7 @@ export function toReviewResponse(review: Review): ReviewResponse {
     finishedAt: review.finishedAt.toISOString(),
     createdAt: review.createdAt.toISOString(),
     updatedAt: review.updatedAt.toISOString(),
-    photo: null,
+    photo: review.photo && toMediaPhotoResponse(review.photo),
   };
 }
 

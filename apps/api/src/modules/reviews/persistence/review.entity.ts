@@ -26,6 +26,9 @@ export class ReviewEntity {
   @Column({ type: 'text', nullable: true })
   text: string | null;
 
+  @Column({ name: 'photo_media_id', type: 'uuid', nullable: true })
+  photoMediaId: string | null;
+
   @Column({ name: 'finished_at', type: 'timestamptz' })
   finishedAt: Date;
 

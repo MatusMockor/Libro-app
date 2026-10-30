@@ -1,4 +1,5 @@
-import { Check, Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
+import { Check, Column, Entity, Index, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { PostPhotoEntity } from './post-photo.entity.js';
 
 @Entity({ schema: 'feed', name: 'posts' })
 @Index('posts_created_at_id_idx', ['createdAt', 'id'])
@@ -12,8 +13,8 @@ export class PostEntity {
   @Column({ name: 'author_id', type: 'uuid' })
   authorId: string;
 
-  @Column({ type: 'text' })
-  text: string;
+  @Column({ type: 'text', nullable: true })
+  text: string | null;
 
   @Column({ name: 'work_id', type: 'uuid', nullable: true })
   workId: string | null;
@@ -23,4 +24,7 @@ export class PostEntity {
 
   @Column({ name: 'created_at', type: 'timestamptz', default: () => 'now()' })
   createdAt: Date;
+
+  @OneToMany(() => PostPhotoEntity, (photo) => photo.post, { cascade: ['insert'] })
+  photos: PostPhotoEntity[];
 }

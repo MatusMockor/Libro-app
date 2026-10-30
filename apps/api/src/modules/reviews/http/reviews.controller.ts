@@ -22,16 +22,20 @@ export class ReviewsController {
   @Put()
   @ApiOkResponse({
     description:
-      'Creates or replaces your review of the finished reading. An unknown or foreign reading answers 404 reading_not_found, an unfinished one 409 reading_not_finished',
+      'Creates or replaces your review of the finished reading. An unknown or foreign reading answers 404 reading_not_found, an unfinished one 409 reading_not_finished, a photo that is not one of yours 404 media_not_found',
     standardSchema: reviewSchema,
   })
   async write(
     @CurrentUser() { id }: AuthenticatedUser,
     @Param({ schema: reviewParamsSchema }) { readingId }: ReviewParams,
-    @Body({ schema: writeReviewSchema }) { rating, text }: WriteReviewRequest,
+    @Body({ schema: writeReviewSchema }) { rating, text, photoId }: WriteReviewRequest,
   ): Promise<ReviewResponse> {
     return toReviewResponse(
-      await this.writing.write(id, readingId, { rating, text: blankToNull(text) }),
+      await this.writing.write(id, readingId, {
+        rating,
+        text: blankToNull(text),
+        photoMediaId: photoId ?? null,
+      }),
     );
   }
 

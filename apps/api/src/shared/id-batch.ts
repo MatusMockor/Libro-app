@@ -8,3 +8,13 @@ export function distinctIdBatch(ids: readonly string[], max: number): string[] {
 
   return distinct;
 }
+
+export function idChunks(ids: readonly string[], size: number): string[][] {
+  const distinct = [...new Set(ids)];
+  const chunks: string[][] = [];
+  for (let start = 0; start < distinct.length; start += size) {
+    chunks.push(distinct.slice(start, start + size));
+  }
+
+  return chunks;
+}

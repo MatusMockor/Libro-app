@@ -32,6 +32,7 @@ export const workReviewsRoute = (workId: string): string => `/v1/books/${workId}
 
 export interface Reviewer {
   readonly id: string;
+  readonly authorization: string;
   get(path: string): Test;
   delete(path: string): Test;
   write(readingId: string, body: object): Test;
@@ -71,6 +72,7 @@ function reviewerOf(
 ): Reviewer {
   const reviewer: Reviewer = {
     id,
+    authorization,
     get: (path) => http.get(path).set('Authorization', authorization),
     delete: (path) => http.delete(path).set('Authorization', authorization),
     write: (readingId, body) =>

@@ -34,3 +34,18 @@ export interface MediaWithUrls {
   readonly variants: Readonly<Record<MediaVariantName, MediaVariantUrl>>;
   readonly urlsExpireAt: Date;
 }
+
+export type MediaPhoto = Pick<
+  MediaWithUrls,
+  'id' | 'width' | 'height' | 'variants' | 'urlsExpireAt'
+>;
+
+export function toMediaPhoto({
+  id,
+  width,
+  height,
+  variants,
+  urlsExpireAt,
+}: MediaWithUrls): MediaPhoto {
+  return { id, width, height, variants, urlsExpireAt };
+}
