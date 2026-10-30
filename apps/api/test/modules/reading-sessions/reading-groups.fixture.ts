@@ -6,6 +6,7 @@ import { WorkEntity } from '../../../src/modules/books/persistence/work.entity.j
 import type { ProfileFactoryMeta } from '../../../src/modules/profiles/factories/profile.factory.js';
 import { ProfileEntity } from '../../../src/modules/profiles/persistence/profile.entity.js';
 import type { LiveSessionSharing } from '../../../src/modules/reading-sessions/domain/live-session-sharing.js';
+import type { SessionStatus } from '../../../src/modules/reading-sessions/domain/reading-session.js';
 import type { ReadingSessionFactoryMeta } from '../../../src/modules/reading-sessions/factories/reading-session.factory.js';
 import type { SessionParticipantFactoryMeta } from '../../../src/modules/reading-sessions/factories/session-participant.factory.js';
 import type { ReadingSessionResponse } from '../../../src/modules/reading-sessions/http/reading-session.response.js';
@@ -53,8 +54,15 @@ export type NewWork = () => Promise<string>;
 export type ArrangeParticipants = (
   hostSessionId: string,
   count: number,
-  meta?: Omit<SessionParticipantFactoryMeta, 'hostSessionId' | 'participantSessionId'>,
+  meta?: ParticipantArrangement,
 ) => Promise<string[]>;
+
+export interface ParticipantArrangement extends Omit<
+  SessionParticipantFactoryMeta,
+  'hostSessionId' | 'participantSessionId'
+> {
+  readonly sessionStatus?: SessionStatus;
+}
 
 function expectStatus(response: { status: number }, status: number, step: string): void {
   expect(response.status, step).toBe(status);
@@ -122,12 +130,12 @@ function newGroupReaderWith(
 }
 
 function arrangeParticipantsWith(factories: SeederFactoryManager): ArrangeParticipants {
-  return async (hostSessionId, count, meta = {}) => {
+  return async (hostSessionId, count, { sessionStatus, ...meta } = {}) => {
     const participantSessionIds: string[] = [];
     for (let index = 0; index < count; index += 1) {
       const session = await factories
         .get<ReadingSessionEntity, ReadingSessionFactoryMeta>(ReadingSessionEntity)
-        .setMeta({})
+        .setMeta(sessionStatus === undefined ? {} : { status: sessionStatus })
         .save();
       await factories
         .get<SessionParticipantEntity, SessionParticipantFactoryMeta>(SessionParticipantEntity)

@@ -344,9 +344,10 @@ describe('POST /v1/reading-sessions/:sessionId/join', () => {
   }) => {
     const { joiner, hostSession } = await hostAndFollower(newGroupReader, await newWork());
     const joinedAt = new Date(Date.now() - 60_000);
-    await arrangeParticipants(hostSession.id, 17);
+    await arrangeParticipants(hostSession.id, 19);
     await arrangeParticipants(hostSession.id, 1, { joinedAt, leftAt: new Date() });
     await arrangeParticipants(hostSession.id, 1, { joinedAt, removedAt: new Date() });
+    await arrangeParticipants(hostSession.id, 1, { joinedAt, sessionStatus: 'ended' });
 
     const response = await joiner.post(joinRoute(hostSession.id));
 
