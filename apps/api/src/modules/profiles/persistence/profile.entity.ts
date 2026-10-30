@@ -1,10 +1,11 @@
-import { Check, Column, Entity, OneToMany, PrimaryColumn, Unique } from 'typeorm';
+import { Check, Column, Entity, Index, OneToMany, PrimaryColumn, Unique } from 'typeorm';
 import { TopBookEntity } from './top-book.entity.js';
 
 export const PROFILES_HANDLE_KEY = 'profiles_handle_key';
 
 @Entity({ schema: 'profiles', name: 'profiles' })
 @Unique(PROFILES_HANDLE_KEY, ['handle'])
+@Index('profiles_official_idx', ['userId'], { where: '"official"' })
 @Check(
   'profiles_handle_check',
   `char_length("handle") BETWEEN 3 AND 30 AND "handle" ~ '^[a-z0-9]+([._][a-z0-9]+)*$'`,
@@ -30,6 +31,9 @@ export class ProfileEntity {
 
   @Column({ name: 'avatar_media_id', type: 'uuid', nullable: true })
   avatarMediaId: string | null;
+
+  @Column({ type: 'boolean', default: false })
+  official: boolean;
 
   @Column({ name: 'created_at', type: 'timestamptz', default: () => 'now()' })
   createdAt: Date;

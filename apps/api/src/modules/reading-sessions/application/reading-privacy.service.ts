@@ -1,8 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
-  DEFAULT_LIVE_SESSION_SHARING,
-  type LiveSessionSharing,
-} from '../domain/live-session-sharing.js';
+  DEFAULT_READING_PRIVACY,
+  type ReadingPrivacy,
+  type ReadingPrivacyChanges,
+} from '../domain/reading-privacy.js';
 import {
   SHARING_SETTINGS_REPOSITORY,
   type SharingSettingsRepository,
@@ -14,11 +15,11 @@ export class ReadingPrivacyService {
     @Inject(SHARING_SETTINGS_REPOSITORY) private readonly settings: SharingSettingsRepository,
   ) {}
 
-  async liveSessionsOf(userId: string): Promise<LiveSessionSharing> {
-    return (await this.settings.liveSessionsOf(userId)) ?? DEFAULT_LIVE_SESSION_SHARING;
+  async of(userId: string): Promise<ReadingPrivacy> {
+    return (await this.settings.privacyOf(userId)) ?? DEFAULT_READING_PRIVACY;
   }
 
-  shareLiveSessions(userId: string, sharing: LiveSessionSharing): Promise<LiveSessionSharing> {
-    return this.settings.saveLiveSessions(userId, sharing);
+  change(userId: string, changes: ReadingPrivacyChanges): Promise<ReadingPrivacy> {
+    return this.settings.savePrivacy(userId, changes);
   }
 }

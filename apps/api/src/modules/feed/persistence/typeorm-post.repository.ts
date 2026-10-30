@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, type EntityManager } from 'typeorm';
 import type { CreatePostOutcome, PostRepository } from '../application/post-repository.js';
+import { POST_ACTIVITY } from '../domain/activity.js';
 import type { FeedPageQuery } from '../domain/feed-page.js';
 import type { NewPost, StoredPost } from '../domain/post.js';
 import type { PostLimit } from '../domain/post-limit.js';
@@ -31,6 +32,11 @@ const INSERT_PHOTOS = `
   INSERT INTO feed.post_photos (post_id, position, media_id)
   SELECT $1::uuid, photo.position, photo.media_id
   FROM unnest($2::uuid[]) WITH ORDINALITY AS photo (media_id, position)
+`;
+
+const INSERT_POST_ACTIVITY = `
+  INSERT INTO feed.activities (actor_id, kind, post_id, created_at)
+  VALUES ($1, '${POST_ACTIVITY}', $2, $3::timestamptz)
 `;
 
 const SELECT_RETRY_AFTER = `
@@ -89,6 +95,10 @@ const SELECT_POST = `${SELECT_POSTS}
   WHERE post.id = $2
 `;
 
+const SELECT_POSTS_BY_IDS = `${SELECT_POSTS}
+  WHERE post.id = ANY ($2::uuid[])
+`;
+
 const PAGE = `
   AND ($2::timestamptz IS NULL OR (post.created_at, post.id) < ($2::timestamptz, $3::uuid))
   ORDER BY post.created_at DESC, post.id DESC
@@ -128,6 +138,7 @@ export class TypeOrmPostRepository implements PostRepository {
         now,
       ]);
       if (created) {
+        await manager.query(INSERT_POST_ACTIVITY, [authorId, created.id, now]);
         await insertPhotos(manager, created.id, photoIds);
 
         return { kind: 'created', postId: created.id };
@@ -146,6 +157,10 @@ export class TypeOrmPostRepository implements PostRepository {
     const [post] = await this.posts.query<StoredPost[]>(SELECT_POST, [viewerId, postId]);
 
     return post;
+  }
+
+  findMany(viewerId: string, postIds: readonly string[]): Promise<StoredPost[]> {
+    return this.posts.query<StoredPost[]>(SELECT_POSTS_BY_IDS, [viewerId, postIds]);
   }
 
   async deleteOwned(authorId: string, postId: string): Promise<boolean> {

@@ -7,6 +7,8 @@ import { EraseProfileHandler } from './application/erase-profile.handler.js';
 import { FOLLOW_REPOSITORY } from './application/follow-repository.js';
 import { FollowService } from './application/follow.service.js';
 import { HANDLE_SUFFIX_SOURCE } from './application/handle-suffix-source.js';
+import { OFFICIAL_ACCOUNT_REPOSITORY } from './application/official-account-repository.js';
+import { OfficialAccountsService } from './application/official-accounts.service.js';
 import { OwnProfileService } from './application/own-profile.service.js';
 import { ProfileAssemblerService } from './application/profile-assembler.service.js';
 import { ProfileDirectoryService } from './application/profile-directory.service.js';
@@ -24,8 +26,10 @@ import { FollowEntity } from './persistence/follow.entity.js';
 import { ProfileEntity } from './persistence/profile.entity.js';
 import { TopBookEntity } from './persistence/top-book.entity.js';
 import { TypeOrmFollowRepository } from './persistence/typeorm-follow.repository.js';
+import { TypeOrmOfficialAccountRepository } from './persistence/typeorm-official-account.repository.js';
 import { TypeOrmProfileSummaryRepository } from './persistence/typeorm-profile-summary.repository.js';
 import { TypeOrmProfileRepository } from './persistence/typeorm-profile.repository.js';
+import { OFFICIAL_ACCOUNTS } from './official-accounts.js';
 import { PROFILE_DIRECTORY } from './profile-directory.js';
 import { RandomHandleSuffixSource } from './security/random-handle-suffix.source.js';
 import { SOCIAL_GRAPH } from './social-graph.js';
@@ -49,13 +53,16 @@ import { SOCIAL_GRAPH } from './social-graph.js';
     FollowService,
     SocialGraphService,
     ProfileDirectoryService,
+    OfficialAccountsService,
     { provide: PROFILE_REPOSITORY, useClass: TypeOrmProfileRepository },
     { provide: PROFILE_SUMMARY_REPOSITORY, useClass: TypeOrmProfileSummaryRepository },
     { provide: FOLLOW_REPOSITORY, useClass: TypeOrmFollowRepository },
+    { provide: OFFICIAL_ACCOUNT_REPOSITORY, useClass: TypeOrmOfficialAccountRepository },
     { provide: HANDLE_SUFFIX_SOURCE, useClass: RandomHandleSuffixSource },
     { provide: SOCIAL_GRAPH, useExisting: SocialGraphService },
     { provide: PROFILE_DIRECTORY, useExisting: ProfileDirectoryService },
+    { provide: OFFICIAL_ACCOUNTS, useExisting: OfficialAccountsService },
   ],
-  exports: [SOCIAL_GRAPH, PROFILE_DIRECTORY],
+  exports: [SOCIAL_GRAPH, PROFILE_DIRECTORY, OFFICIAL_ACCOUNTS],
 })
 export class ProfilesModule {}

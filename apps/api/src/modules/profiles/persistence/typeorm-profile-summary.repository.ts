@@ -13,6 +13,7 @@ const SUMMARY_COLUMNS = `
   profile.handle,
   profile.display_name AS "displayName",
   profile.avatar_media_id AS "avatarMediaId",
+  profile.official,
   EXISTS (
     SELECT 1 FROM profiles.follows AS mine
     WHERE mine.follower_id = $1 AND mine.followee_id = profile.user_id

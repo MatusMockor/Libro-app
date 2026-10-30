@@ -12,6 +12,7 @@ const EMPTY_PROFILE = {
   favouriteGenres: [],
   topBooks: [],
   avatar: null,
+  official: false,
   followerCount: 0,
   followingCount: 0,
   followedByMe: false,

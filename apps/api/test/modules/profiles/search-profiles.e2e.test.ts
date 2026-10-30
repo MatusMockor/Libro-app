@@ -34,6 +34,7 @@ describe('GET /v1/profiles', () => {
           handle: 'jan.stastny',
           displayName: 'Ján Šťastný',
           avatar: null,
+          official: false,
           followedByMe: false,
         },
       ],

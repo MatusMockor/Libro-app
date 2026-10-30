@@ -17,6 +17,7 @@
     "migration:create": "sh -c 'pnpm run typeorm migration:create \"src/database/migrations/${1:?missing migration name}\" && prettier --write src/database/migrations' sh",
     "migration:check": "pnpm run typeorm migration:generate src/database/migrations/SchemaDrift --dataSource src/database/data-source.ts --check",
     "accounts:purge-deleted": "node --import @oxc-node/core/register src/cli/purge-deleted-accounts.ts",
+    "profiles:set-official": "node --import @oxc-node/core/register src/cli/set-official-account.ts",
     "seed:run": "node --import @oxc-node/core/register node_modules/typeorm-extension/bin/cli.mjs seed:run --dataSource src/database/data-source.ts --preserveFilePaths"
   },
   "dependencies": {

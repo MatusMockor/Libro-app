@@ -2,24 +2,38 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import type { SharingSettingsRepository } from '../application/sharing-settings-repository.js';
-import type { LiveSessionSharing } from '../domain/live-session-sharing.js';
+import {
+  DEFAULT_READING_PRIVACY,
+  READING_ACTIVITY_SHARED_WITH_FOLLOWERS,
+  type ReadingPrivacy,
+  type ReadingPrivacyChanges,
+} from '../domain/reading-privacy.js';
 import { SharingSettingEntity } from './sharing-setting.entity.js';
 
-const SELECT_LIVE_SESSIONS = `
-  SELECT live_sessions AS "liveSessions" FROM reading.sharing_settings WHERE user_id = $1
+const PRIVACY_COLUMNS = `
+  live_sessions AS "liveSessions", reading_activity AS "readingActivity"
 `;
 
-const UPSERT_LIVE_SESSIONS = `
-  INSERT INTO reading.sharing_settings (user_id, live_sessions, updated_at)
-  VALUES ($1, $2, clock_timestamp())
+const SELECT_PRIVACY = `
+  SELECT ${PRIVACY_COLUMNS} FROM reading.sharing_settings WHERE user_id = $1
+`;
+
+const UPSERT_PRIVACY = `
+  INSERT INTO reading.sharing_settings (user_id, live_sessions, reading_activity, updated_at)
+  VALUES ($1, coalesce($2::text, $4::text), coalesce($3::text, $5::text), clock_timestamp())
   ON CONFLICT (user_id)
-  DO UPDATE SET live_sessions = excluded.live_sessions, updated_at = excluded.updated_at
-  RETURNING live_sessions AS "liveSessions"
+  DO UPDATE SET live_sessions = coalesce($2::text, sharing_settings.live_sessions),
+                reading_activity = coalesce($3::text, sharing_settings.reading_activity),
+                updated_at = excluded.updated_at
+  RETURNING ${PRIVACY_COLUMNS}
 `;
 
-interface LiveSessionsRow {
-  readonly liveSessions: LiveSessionSharing;
-}
+const SELECT_SHARING_READING_ACTIVITY = `
+  SELECT candidate.user_id::text AS "userId"
+  FROM unnest($1::uuid[]) AS candidate (user_id)
+  LEFT JOIN reading.sharing_settings AS setting ON setting.user_id = candidate.user_id
+  WHERE coalesce(setting.reading_activity, $2) = $2
+`;
 
 @Injectable()
 export class TypeOrmSharingSettingsRepository implements SharingSettingsRepository {
@@ -28,18 +42,33 @@ export class TypeOrmSharingSettingsRepository implements SharingSettingsReposito
     private readonly settings: Repository<SharingSettingEntity>,
   ) {}
 
-  async liveSessionsOf(userId: string): Promise<LiveSessionSharing | undefined> {
-    const [row] = await this.settings.query<LiveSessionsRow[]>(SELECT_LIVE_SESSIONS, [userId]);
+  async privacyOf(userId: string): Promise<ReadingPrivacy | undefined> {
+    const [row] = await this.settings.query<ReadingPrivacy[]>(SELECT_PRIVACY, [userId]);
 
-    return row?.liveSessions;
+    return row;
   }
 
-  async saveLiveSessions(userId: string, sharing: LiveSessionSharing): Promise<LiveSessionSharing> {
-    const [row] = await this.settings.query<[LiveSessionsRow]>(UPSERT_LIVE_SESSIONS, [
+  async savePrivacy(
+    userId: string,
+    { liveSessions, readingActivity }: ReadingPrivacyChanges,
+  ): Promise<ReadingPrivacy> {
+    const [row] = await this.settings.query<[ReadingPrivacy]>(UPSERT_PRIVACY, [
       userId,
-      sharing,
+      liveSessions ?? null,
+      readingActivity ?? null,
+      DEFAULT_READING_PRIVACY.liveSessions,
+      DEFAULT_READING_PRIVACY.readingActivity,
     ]);
 
-    return row.liveSessions;
+    return row;
+  }
+
+  async sharingReadingActivity(userIds: readonly string[]): Promise<string[]> {
+    const rows = await this.settings.query<{ userId: string }[]>(SELECT_SHARING_READING_ACTIVITY, [
+      userIds,
+      READING_ACTIVITY_SHARED_WITH_FOLLOWERS,
+    ]);
+
+    return rows.map(({ userId }) => userId);
   }
 }

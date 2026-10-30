@@ -9,6 +9,7 @@ export interface StoredProfileSummary {
   readonly handle: string;
   readonly displayName: string | null;
   readonly avatarMediaId: string | null;
+  readonly official: boolean;
   readonly followedByMe: boolean;
 }
 
@@ -25,6 +26,7 @@ export interface ProfileSummary {
   readonly handle: string;
   readonly displayName: string | null;
   readonly avatar: Avatar | null;
+  readonly official: boolean;
   readonly followedByMe: boolean;
 }
 

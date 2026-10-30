@@ -4,12 +4,13 @@ import { describe, expect, onTestFinished } from 'vitest';
 import { EVENT_BUS, type EventBus } from '../../../src/events/event-bus.js';
 import { UserDeleted } from '../../../src/modules/auth/index.js';
 import { CapturingLogger } from '../../support/capturing-logger.js';
-import { test } from './feed.fixture.js';
+import { arrangeActivity, test } from './activity.fixture.js';
 
 interface FeedRows {
   readonly posts: readonly string[];
   readonly likes: readonly string[];
   readonly reactions: readonly string[];
+  readonly activities: readonly string[];
 }
 
 async function feedRows(dataSource: DataSource): Promise<FeedRows> {
@@ -25,16 +26,18 @@ async function feedRows(dataSource: DataSource): Promise<FeedRows> {
          SELECT post.author_id || '<-' || r.user_id || ':' || r.reaction
          FROM feed.reactions AS r JOIN feed.posts AS post ON post.id = r.post_id
          ORDER BY 1
-       ) AS reactions`,
+       ) AS reactions,
+       ARRAY(SELECT actor_id || ':' || kind FROM feed.activities ORDER BY 1) AS activities`,
   );
 
-  return rows ?? { posts: [], likes: [], reactions: [] };
+  return rows ?? { posts: [], likes: [], reactions: [], activities: [] };
 }
 
 describe('UserDeleted in the feed', () => {
-  test('deletes the posts, likes and reactions of the user, also on posts of others, idempotently', async ({
+  test('deletes the posts, activities, likes and reactions of the user, also on posts of others, idempotently', async ({
     app,
     dataSource,
+    factories,
     newReader,
   }) => {
     const ann = await newReader();
@@ -50,6 +53,9 @@ describe('UserDeleted in the feed', () => {
     await ann.react(bensPost.id, 'hug');
     await cleo.like(bensPost.id);
     await cleo.react(bensPost.id, 'books');
+    await arrangeActivity(factories, { actorId: ann.id, kind: 'reading_started' });
+    await arrangeActivity(factories, { actorId: ann.id, kind: 'book_finished' });
+    await arrangeActivity(factories, { actorId: ben.id, kind: 'book_finished' });
     const logger = new CapturingLogger();
     app.useLogger(logger);
     onTestFinished(() => {
@@ -66,6 +72,7 @@ describe('UserDeleted in the feed', () => {
       posts: [ben.id],
       likes: [`${ben.id}<-${cleo.id}`],
       reactions: [`${ben.id}<-${cleo.id}:books`],
+      activities: [`${ben.id}:book_finished`, `${ben.id}:post`],
     });
     expect(await feedRows(dataSource)).toEqual(afterFirst);
     expect(await cleo.find(bensPost.id)).toMatchObject({

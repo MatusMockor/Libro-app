@@ -19,6 +19,9 @@ export const feedProfileSchema = z
     handle: z.string().meta({ example: 'jana.novakova' }),
     displayName: z.string().nullable(),
     avatar: avatarSchema.nullable(),
+    official: z
+      .boolean()
+      .meta({ description: 'Whether this is an official Libro account (the app shows a badge)' }),
     followedByMe: z
       .boolean()
       .meta({ description: 'Whether the signed-in user follows this profile' }),
@@ -34,9 +37,9 @@ export function toFeedProfileResponse(summary: ProfileSummary | null): FeedProfi
     return null;
   }
 
-  const { userId, handle, displayName, avatar, followedByMe } = summary;
+  const { userId, handle, displayName, avatar, official, followedByMe } = summary;
 
-  return { userId, handle, displayName, avatar: toAvatarResponse(avatar), followedByMe };
+  return { userId, handle, displayName, avatar: toAvatarResponse(avatar), official, followedByMe };
 }
 
 function toAvatarResponse(avatar: Avatar | null): AvatarResponse | null {

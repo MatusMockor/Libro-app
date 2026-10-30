@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { ProfileSummary } from '../domain/profile.js';
 import { distinctIdBatch } from '../../../shared/id-batch.js';
 import { MAX_PROFILE_SUMMARIES_PER_CALL, type ProfileDirectory } from '../profile-directory.js';
+import { OfficialAccountsService } from './official-accounts.service.js';
 import { ProfileAssemblerService } from './profile-assembler.service.js';
 import {
   PROFILE_SUMMARY_REPOSITORY,
@@ -13,6 +14,7 @@ export class ProfileDirectoryService implements ProfileDirectory {
   constructor(
     @Inject(PROFILE_SUMMARY_REPOSITORY) private readonly summaries: ProfileSummaryRepository,
     private readonly assembler: ProfileAssemblerService,
+    private readonly officialAccounts: OfficialAccountsService,
   ) {}
 
   async findSummaries(
@@ -29,5 +31,9 @@ export class ProfileDirectoryService implements ProfileDirectory {
     );
 
     return new Map(found.map((summary) => [summary.userId, summary]));
+  }
+
+  officialUserIds(): Promise<string[]> {
+    return this.officialAccounts.officialUserIds();
   }
 }

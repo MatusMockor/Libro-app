@@ -11,6 +11,7 @@ import {
 import { ReadingSessionAlreadyOpenException } from './reading-session-already-open.exception.js';
 import { ReadingSessionEndedException } from './reading-session-ended.exception.js';
 import { ReadingSessionNotFoundException } from './reading-session-not-found.exception.js';
+import { ReadingStartAnnouncer } from './reading-start-announcer.service.js';
 import { RemovedFromGroupException } from './removed-from-group.exception.js';
 import { SessionLookupService } from './session-lookup.service.js';
 import { SessionViewersService } from './session-viewers.service.js';
@@ -37,6 +38,7 @@ export class JoinSessionService {
     @Inject(READING_GROUP_REPOSITORY) private readonly groups: ReadingGroupRepository,
     private readonly viewers: SessionViewersService,
     private readonly lookup: SessionLookupService,
+    private readonly announcer: ReadingStartAnnouncer,
   ) {}
 
   async join(userId: string, { targetSessionId, place }: SessionJoin): Promise<ReadingSession> {
@@ -49,6 +51,8 @@ export class JoinSessionService {
       throw new REJECTIONS[outcome.kind]();
     }
 
-    return this.lookup.get({ userId, sessionId: outcome.sessionId });
+    await this.announcer.announce(userId, outcome.workId, outcome.session);
+
+    return this.lookup.get({ userId, sessionId: outcome.session.sessionId });
   }
 }

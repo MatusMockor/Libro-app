@@ -20,22 +20,24 @@ export class ReadingPrivacyController {
 
   @Get()
   @ApiOkResponse({
-    description: 'Who sees your open reading session; followers until you change it',
+    description:
+      'Who sees your open reading session and your reading activity in the feed; followers until you change it',
     standardSchema: readingPrivacySchema,
   })
   async find(@CurrentUser() { id }: AuthenticatedUser): Promise<ReadingPrivacyResponse> {
-    return toReadingPrivacyResponse(await this.privacy.liveSessionsOf(id));
+    return toReadingPrivacyResponse(await this.privacy.of(id));
   }
 
   @Put()
   @ApiOkResponse({
-    description: 'The setting was saved; it applies at once, also to a session already open',
+    description:
+      'The settings sent were saved, the others kept; they apply at once, also to a session already open and to reading activity already in the feed',
     standardSchema: readingPrivacySchema,
   })
   async update(
     @CurrentUser() { id }: AuthenticatedUser,
-    @Body({ schema: readingPrivacyRequestSchema }) { liveSessions }: ReadingPrivacyRequest,
+    @Body({ schema: readingPrivacyRequestSchema }) privacy: ReadingPrivacyRequest,
   ): Promise<ReadingPrivacyResponse> {
-    return toReadingPrivacyResponse(await this.privacy.shareLiveSessions(id, liveSessions));
+    return toReadingPrivacyResponse(await this.privacy.change(id, privacy));
   }
 }

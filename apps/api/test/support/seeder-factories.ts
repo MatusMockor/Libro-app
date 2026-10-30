@@ -10,9 +10,11 @@ import { CongratulationEntity } from '../../src/modules/encouragements/persisten
 import { InsightEntity } from '../../src/modules/encouragements/persistence/insight.entity.js';
 import { createWorkFactory } from '../../src/modules/books/factories/work.factory.js';
 import { WorkEntity } from '../../src/modules/books/persistence/work.entity.js';
+import { createActivityFactory } from '../../src/modules/feed/factories/activity.factory.js';
 import { createLikeFactory } from '../../src/modules/feed/factories/like.factory.js';
 import { createPostFactory } from '../../src/modules/feed/factories/post.factory.js';
 import { createReactionFactory } from '../../src/modules/feed/factories/reaction.factory.js';
+import { ActivityEntity } from '../../src/modules/feed/persistence/activity.entity.js';
 import { LikeEntity } from '../../src/modules/feed/persistence/like.entity.js';
 import { PostEntity } from '../../src/modules/feed/persistence/post.entity.js';
 import { ReactionEntity } from '../../src/modules/feed/persistence/reaction.entity.js';
@@ -45,6 +47,7 @@ export function seederFactories(dataSource: DataSource): SeederFactoryManager {
   factories.set(PostEntity, createPostFactory());
   factories.set(LikeEntity, createLikeFactory());
   factories.set(ReactionEntity, createReactionFactory());
+  factories.set(ActivityEntity, createActivityFactory());
   factories.set(ReviewEntity, createReviewFactory());
   factories.set(InsightEntity, createInsightFactory());
   factories.set(CongratulationEntity, createCongratulationFactory());

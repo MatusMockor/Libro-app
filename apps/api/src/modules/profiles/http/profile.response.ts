@@ -21,12 +21,21 @@ const profileIdentity = {
   displayName: z.string().nullable(),
 };
 
+const officialSchema = z
+  .boolean()
+  .meta({ description: 'Whether this is an official Libro account (the app shows a badge)' });
+
 const followedByMeSchema = z
   .boolean()
   .meta({ description: 'Whether the signed-in user follows this profile' });
 
 export const profileSummarySchema = z
-  .object({ ...profileIdentity, avatar: avatarSchema.nullable(), followedByMe: followedByMeSchema })
+  .object({
+    ...profileIdentity,
+    avatar: avatarSchema.nullable(),
+    official: officialSchema,
+    followedByMe: followedByMeSchema,
+  })
   .meta({ id: 'ProfileSummary' });
 
 export const profileSchema = z
@@ -44,6 +53,7 @@ export const profileSchema = z
       )
       .meta({ description: 'At most 3 books, best first' }),
     avatar: avatarSchema.nullable(),
+    official: officialSchema,
     followerCount: z.int(),
     followingCount: z.int(),
     followedByMe: followedByMeSchema,
@@ -83,9 +93,10 @@ export function toProfileSummaryResponse({
   handle,
   displayName,
   avatar,
+  official,
   followedByMe,
 }: ProfileSummary): ProfileSummaryResponse {
-  return { userId, handle, displayName, avatar: toAvatarResponse(avatar), followedByMe };
+  return { userId, handle, displayName, avatar: toAvatarResponse(avatar), official, followedByMe };
 }
 
 export function toProfileResponse(profile: Profile): ProfileResponse {
@@ -101,6 +112,7 @@ export function toProfileResponse(profile: Profile): ProfileResponse {
       authors: authors.map((author) => ({ id: author.id, name: author.name })),
     })),
     avatar: toAvatarResponse(profile.avatar),
+    official: profile.official,
     followerCount: profile.followerCount,
     followingCount: profile.followingCount,
     followedByMe: profile.followedByMe,

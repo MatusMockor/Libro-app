@@ -53,6 +53,7 @@ describe('GET /v1/reading-sessions/live', () => {
             handle: 'jana.cita',
             displayName: 'Jana',
             avatar: null,
+            official: false,
             followedByMe: true,
           },
           book: {

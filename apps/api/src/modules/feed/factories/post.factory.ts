@@ -1,4 +1,6 @@
 import { setSeederFactory, type FactoryCallback } from 'typeorm-extension';
+import { POST_ACTIVITY } from '../domain/activity.js';
+import { ActivityEntity } from '../persistence/activity.entity.js';
 import { PostPhotoEntity } from '../persistence/post-photo.entity.js';
 import { PostEntity } from '../persistence/post.entity.js';
 
@@ -25,15 +27,24 @@ export function createPostFactory(): FactoryCallback<PostEntity, PostFactoryMeta
 export default setSeederFactory(PostEntity, createPostFactory());
 
 function samplePost(serial: number, { photoIds = [], ...meta }: PostFactoryMeta): PostEntity {
+  const authorId = meta.authorId ?? syntheticId(serial);
+
   return Object.assign(new PostEntity(), {
-    authorId: syntheticId(serial),
     text: `Sample post ${String(serial)}`,
     workId: null,
     place: null,
     ...meta,
+    authorId,
     photos: photoIds.map((mediaId, index) =>
       Object.assign(new PostPhotoEntity(), { position: index + 1, mediaId }),
     ),
+    activities: [
+      Object.assign(new ActivityEntity(), {
+        actorId: authorId,
+        kind: POST_ACTIVITY,
+        ...(meta.createdAt === undefined ? {} : { createdAt: meta.createdAt }),
+      }),
+    ],
   });
 }
 
