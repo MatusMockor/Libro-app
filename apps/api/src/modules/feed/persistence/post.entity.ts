@@ -1,4 +1,5 @@
 import { Check, Column, Entity, Index, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { ActivityEntity } from './activity.entity.js';
 import { PostPhotoEntity } from './post-photo.entity.js';
 
 @Entity({ schema: 'feed', name: 'posts' })
@@ -27,4 +28,7 @@ export class PostEntity {
 
   @OneToMany(() => PostPhotoEntity, (photo) => photo.post, { cascade: ['insert'] })
   photos: PostPhotoEntity[];
+
+  @OneToMany(() => ActivityEntity, (activity) => activity.post, { cascade: ['insert'] })
+  activities: ActivityEntity[];
 }

@@ -10,7 +10,7 @@ import type {
   ReadingGroupRepository,
   RemovalOutcome,
 } from '../application/reading-group-repository.js';
-import type { SessionOwner } from '../application/reading-session-repository.js';
+import type { OpenedSession, SessionOwner } from '../application/reading-session-repository.js';
 import { MAX_GROUP_PARTICIPANTS } from '../domain/reading-group.js';
 import type { SessionStatus } from '../domain/reading-session.js';
 import { ReadingSessionEntity, SESSIONS_OPEN_USER_ID_KEY } from './reading-session.entity.js';
@@ -67,16 +67,22 @@ const START_PARTICIPANT_SESSION = `
     SELECT $1, $2, clock.at FROM clock
     ON CONFLICT (user_id, work_id) WHERE finished_at IS NULL
     DO UPDATE SET user_id = excluded.user_id
-    RETURNING id
+    RETURNING id, (xmax = 0) AS created
   ),
   session AS (
     INSERT INTO reading.sessions (reading_id, user_id, place, status, started_at, active_since)
     SELECT reading.id, $1, $3, 'active', clock.at, clock.at FROM reading, clock
     RETURNING id, started_at
+  ),
+  participation AS (
+    INSERT INTO reading.session_participants (host_session_id, participant_session_id, joined_at)
+    SELECT $4, session.id, session.started_at FROM session
+    RETURNING participant_session_id
   )
-  INSERT INTO reading.session_participants (host_session_id, participant_session_id, joined_at)
-  SELECT $4, session.id, session.started_at FROM session
-  RETURNING participant_session_id AS "sessionId"
+  SELECT participation.participant_session_id AS "sessionId",
+         reading.id AS "readingId",
+         reading.created AS "readingCreated"
+  FROM participation, reading
 `;
 
 const OWNED_SESSION = `
@@ -248,14 +254,14 @@ async function joinIn(
     return { kind: 'full' };
   }
 
-  const [joined] = await manager.query<[{ sessionId: string }]>(START_PARTICIPANT_SESSION, [
+  const [session] = await manager.query<[OpenedSession]>(START_PARTICIPANT_SESSION, [
     viewer.userId,
     host.workId,
     place,
     rootId,
   ]);
 
-  return { kind: 'joined', sessionId: joined.sessionId };
+  return { kind: 'joined', session, workId: host.workId };
 }
 
 async function lockGroupOf(manager: EntityManager, sessionId: string): Promise<LockedGroup> {

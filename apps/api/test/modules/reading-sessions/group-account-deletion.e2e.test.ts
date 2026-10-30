@@ -106,6 +106,9 @@ describe('account deletion of a group member', () => {
 
     await deleteAccountOf(ann);
 
-    expect((await ben.get(PRIVACY_ROUTE)).body).toStrictEqual({ liveSessions: 'nobody' });
+    expect((await ben.get(PRIVACY_ROUTE)).body).toStrictEqual({
+      liveSessions: 'nobody',
+      readingActivity: 'followers',
+    });
   });
 });

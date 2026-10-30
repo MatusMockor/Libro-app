@@ -11,6 +11,7 @@ export type CreatePostOutcome =
 export interface PostRepository {
   create(post: NewPost, limit: PostLimit): Promise<CreatePostOutcome>;
   find(viewerId: string, postId: string): Promise<StoredPost | undefined>;
+  findMany(viewerId: string, postIds: readonly string[]): Promise<StoredPost[]>;
   deleteOwned(authorId: string, postId: string): Promise<boolean>;
   listAll(viewerId: string, page: FeedPageQuery): Promise<StoredPost[]>;
   listByAuthors(

@@ -19,8 +19,14 @@ export interface NewReadingSession {
   readonly place: string | null;
 }
 
+export interface OpenedSession {
+  readonly sessionId: string;
+  readonly readingId: string;
+  readonly readingCreated: boolean;
+}
+
 export interface ReadingSessionRepository {
-  start(session: NewReadingSession): Promise<string>;
+  start(session: NewReadingSession): Promise<OpenedSession>;
   findById(owner: SessionOwner): Promise<ReadingSession | undefined>;
   findOpen(userId: string): Promise<ReadingSession | undefined>;
   transition(owner: SessionOwner, rule: TransitionRule): Promise<boolean>;

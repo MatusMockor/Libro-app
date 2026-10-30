@@ -6,6 +6,7 @@ import { ReadingSessionAlreadyOpenException } from '../application/reading-sessi
 import { ReadingSessionLimitReachedException } from '../application/reading-session-limit-reached.exception.js';
 import type {
   NewReadingSession,
+  OpenedSession,
   ReadingSessionRepository,
   SessionOwner,
 } from '../application/reading-session-repository.js';
@@ -29,7 +30,7 @@ const UPSERT_UNFINISHED_READING = `
   VALUES ($1, $2, now())
   ON CONFLICT (user_id, work_id) WHERE finished_at IS NULL
   DO UPDATE SET user_id = excluded.user_id
-  RETURNING id
+  RETURNING id, (xmax = 0) AS created
 `;
 
 const INSERT_SESSION = `
@@ -114,20 +115,20 @@ export class TypeOrmReadingSessionRepository implements ReadingSessionRepository
     private readonly sessions: Repository<ReadingSessionEntity>,
   ) {}
 
-  async start({ userId, workId, place }: NewReadingSession): Promise<string> {
+  async start({ userId, workId, place }: NewReadingSession): Promise<OpenedSession> {
     try {
       return await this.sessions.manager.transaction(async (manager) => {
-        const [reading] = await manager.query<[{ id: string }]>(UPSERT_UNFINISHED_READING, [
-          userId,
-          workId,
-        ]);
+        const [reading] = await manager.query<[{ id: string; created: boolean }]>(
+          UPSERT_UNFINISHED_READING,
+          [userId, workId],
+        );
         const [session] = await manager.query<[{ id: string }]>(INSERT_SESSION, [
           reading.id,
           userId,
           place,
         ]);
 
-        return session.id;
+        return { sessionId: session.id, readingId: reading.id, readingCreated: reading.created };
       });
     } catch (error) {
       if (isUniqueViolation(error, SESSIONS_OPEN_USER_ID_KEY)) {

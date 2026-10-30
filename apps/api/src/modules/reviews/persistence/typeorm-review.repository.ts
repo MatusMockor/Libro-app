@@ -46,6 +46,10 @@ const SELECT_VISIBLE_REVIEW = `${SELECT_REVIEWS}
   WHERE reading_id = $1 AND user_id = ANY ($2::uuid[])
 `;
 
+const SELECT_BY_READING_IDS = `${SELECT_REVIEWS}
+  WHERE reading_id = ANY ($1::uuid[])
+`;
+
 const PAGE = `
   AND ($2::timestamptz IS NULL OR (created_at, reading_id) < ($2::timestamptz, $3::uuid))
   ORDER BY created_at DESC, reading_id DESC
@@ -118,6 +122,10 @@ export class TypeOrmReviewRepository implements ReviewRepository {
     ]);
 
     return review;
+  }
+
+  findByReadingIds(readingIds: readonly string[]): Promise<StoredReview[]> {
+    return this.reviews.query<StoredReview[]>(SELECT_BY_READING_IDS, [readingIds]);
   }
 
   async deleteOwned(userId: string, readingId: string): Promise<boolean> {

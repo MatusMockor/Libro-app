@@ -26,6 +26,7 @@ const SELECT_PROFILE = `
          profile.bio,
          profile.favourite_genres AS "favouriteGenres",
          profile.avatar_media_id AS "avatarMediaId",
+         profile.official,
          coalesce(
            (SELECT array_agg(top_book.work_id::text ORDER BY top_book.position)
             FROM profiles.top_books AS top_book

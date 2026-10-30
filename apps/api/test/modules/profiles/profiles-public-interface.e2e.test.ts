@@ -57,6 +57,7 @@ describe('PROFILE_DIRECTORY public interface', () => {
       handle: 'jana',
       displayName: 'Jana',
       avatar: null,
+      official: false,
       followedByMe: true,
     });
     expect(summaries.get(peter.id)).toStrictEqual({
@@ -64,6 +65,7 @@ describe('PROFILE_DIRECTORY public interface', () => {
       handle: 'peter',
       displayName: null,
       avatar: null,
+      official: false,
       followedByMe: false,
     });
   });

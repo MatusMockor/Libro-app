@@ -1,5 +1,5 @@
 import type { SessionViewer } from '../domain/reading-group.js';
-import type { SessionOwner } from './reading-session-repository.js';
+import type { OpenedSession, SessionOwner } from './reading-session-repository.js';
 
 export const READING_GROUP_REPOSITORY = Symbol('READING_GROUP_REPOSITORY');
 
@@ -10,7 +10,7 @@ export interface JoinRequest {
 }
 
 export type JoinOutcome =
-  | { readonly kind: 'joined'; readonly sessionId: string }
+  | { readonly kind: 'joined'; readonly session: OpenedSession; readonly workId: string }
   | { readonly kind: 'not_found' }
   | { readonly kind: 'own_session' }
   | { readonly kind: 'already_open' }

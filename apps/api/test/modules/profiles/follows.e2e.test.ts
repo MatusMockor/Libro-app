@@ -260,15 +260,30 @@ describe('GET /v1/profiles/:userId/followers and /following', () => {
 
     expect(followers).toStrictEqual({
       items: [
-        { userId: eva.id, handle: 'eva', displayName: null, avatar: null, followedByMe: false },
+        {
+          userId: eva.id,
+          handle: 'eva',
+          displayName: null,
+          avatar: null,
+          official: false,
+          followedByMe: false,
+        },
         {
           userId: peter.id,
           handle: 'peter',
           displayName: 'Peter',
           avatar: null,
+          official: false,
           followedByMe: false,
         },
-        { userId: jana.id, handle: 'jana', displayName: null, avatar: null, followedByMe: false },
+        {
+          userId: jana.id,
+          handle: 'jana',
+          displayName: null,
+          avatar: null,
+          official: false,
+          followedByMe: false,
+        },
       ],
       nextOffset: null,
     });

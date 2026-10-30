@@ -10,6 +10,7 @@ export interface ProfileFactoryMeta {
   bio?: string | null;
   favouriteGenres?: readonly Genre[];
   avatarMediaId?: string | null;
+  official?: boolean;
   topBookIds?: readonly string[];
 }
 
@@ -37,6 +38,7 @@ function sampleProfile(
     displayName: null,
     bio: null,
     avatarMediaId: null,
+    official: false,
     ...meta,
     favouriteGenres: [...favouriteGenres],
     topBooks: topBookIds.map((workId, index) =>

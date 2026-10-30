@@ -23,10 +23,12 @@ import type { CongratulationFactoryMeta } from '../../../src/modules/encourageme
 import type { InsightFactoryMeta } from '../../../src/modules/encouragements/factories/insight.factory.js';
 import { CongratulationEntity } from '../../../src/modules/encouragements/persistence/congratulation.entity.js';
 import { InsightEntity } from '../../../src/modules/encouragements/persistence/insight.entity.js';
+import type { ActivityFactoryMeta } from '../../../src/modules/feed/factories/activity.factory.js';
 import type { LikeFactoryMeta } from '../../../src/modules/feed/factories/like.factory.js';
 import type { PostFactoryMeta } from '../../../src/modules/feed/factories/post.factory.js';
 import type { ReactionFactoryMeta } from '../../../src/modules/feed/factories/reaction.factory.js';
 import type { PostResponse } from '../../../src/modules/feed/http/post.response.js';
+import { ActivityEntity } from '../../../src/modules/feed/persistence/activity.entity.js';
 import { LikeEntity } from '../../../src/modules/feed/persistence/like.entity.js';
 import { PostEntity } from '../../../src/modules/feed/persistence/post.entity.js';
 import { ReactionEntity } from '../../../src/modules/feed/persistence/reaction.entity.js';
@@ -429,6 +431,12 @@ export async function arrangeLeftovers(
     .get<PostEntity, PostFactoryMeta>(PostEntity)
     .setMeta({ authorId: userId, workId: work.id, photoIds: [media.id] })
     .save();
+  for (const kind of ['reading_started', 'book_finished'] as const) {
+    await factories
+      .get<ActivityEntity, ActivityFactoryMeta>(ActivityEntity)
+      .setMeta({ actorId: userId, kind, readingId: reading.id, workId: work.id })
+      .save();
+  }
   const followeePost = await factories
     .get<PostEntity, PostFactoryMeta>(PostEntity)
     .setMeta({ authorId: followeeId })

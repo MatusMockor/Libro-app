@@ -17,6 +17,10 @@ const DELETE_REACTIONS = `
   DELETE FROM feed.reactions WHERE user_id = $1
 `;
 
+const DELETE_ACTIVITIES = `
+  DELETE FROM feed.activities WHERE actor_id = $1
+`;
+
 const DELETE_POSTS = `
   DELETE FROM feed.posts WHERE author_id = $1
 `;
@@ -32,7 +36,7 @@ export class TypeOrmFeedErasureRepository implements FeedErasureRepository {
   private eraseInTransaction(userId: string): Promise<void> {
     return this.posts.manager.transaction(async (manager) => {
       await manager.query(LOCK_AUTHOR, [userId]);
-      for (const statement of [DELETE_LIKES, DELETE_REACTIONS, DELETE_POSTS]) {
+      for (const statement of [DELETE_LIKES, DELETE_REACTIONS, DELETE_ACTIVITIES, DELETE_POSTS]) {
         await manager.query(statement, [userId]);
       }
     });

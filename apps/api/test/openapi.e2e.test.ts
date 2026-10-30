@@ -405,6 +405,7 @@ describe('OpenAPI', () => {
       'favouriteGenres',
       'topBooks',
       'avatar',
+      'official',
       'followerCount',
       'followingCount',
       'followedByMe',
@@ -414,6 +415,7 @@ describe('OpenAPI', () => {
       'handle',
       'displayName',
       'avatar',
+      'official',
       'followedByMe',
     ]);
     expect(Object.keys(document.components.schemas.UpdateProfile?.properties ?? {})).toEqual([
@@ -470,6 +472,46 @@ describe('OpenAPI', () => {
     expect(content('/v1/feed/reactions', 'get', '200')).toEqual({
       $ref: '#/components/schemas/FeedReactions',
     });
+    expect(content('/v1/feed/activity', 'get', '200')).toEqual({
+      $ref: '#/components/schemas/ActivityPage',
+    });
+    expect(parameterNames('/v1/feed/activity', 'get', 'query')).toEqual([
+      'tab',
+      'type',
+      'cursor',
+      'limit',
+    ]);
+    expect(Object.keys(document.components.schemas.Activity?.properties ?? {})).toEqual([
+      'id',
+      'kind',
+      'actorId',
+      'actor',
+      'createdAt',
+      'post',
+      'reading',
+    ]);
+    expect(document.components.schemas.Activity?.properties?.post).toMatchObject({
+      nullable: true,
+      allOf: [{ $ref: '#/components/schemas/Post' }],
+    });
+    expect(Object.keys(document.components.schemas.ActivityReading?.properties ?? {})).toEqual([
+      'readingId',
+      'book',
+      'review',
+    ]);
+    expect(Object.keys(document.components.schemas.ActivityReview?.properties ?? {})).toEqual([
+      'rating',
+      'text',
+      'photo',
+    ]);
+    expect(Object.keys(document.components.schemas.FeedProfile?.properties ?? {})).toEqual([
+      'userId',
+      'handle',
+      'displayName',
+      'avatar',
+      'official',
+      'followedByMe',
+    ]);
     expect(Object.keys(document.components.schemas.Post?.properties ?? {})).toEqual([
       'id',
       'authorId',
@@ -654,6 +696,7 @@ describe('OpenAPI', () => {
         operation('/v1/feed/following', 'get'),
         operation('/v1/feed/community', 'get'),
         operation('/v1/feed/reactions', 'get'),
+        operation('/v1/feed/activity', 'get'),
         operation('/v1/readings/{readingId}/review', 'put'),
         operation('/v1/readings/{readingId}/review', 'get'),
         operation('/v1/readings/{readingId}/review', 'delete'),
@@ -667,7 +710,7 @@ describe('OpenAPI', () => {
         operation('/v1/readings/{readingId}/encouragements', 'get'),
         operation('/v1/probe/protected', 'get'),
       ].map((protectedOperation) => protectedOperation?.security),
-    ).toEqual(Array.from({ length: 53 }, () => undefined));
+    ).toEqual(Array.from({ length: 54 }, () => undefined));
     expect(
       [
         operation('/health', 'get'),

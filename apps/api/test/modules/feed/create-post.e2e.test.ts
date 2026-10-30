@@ -51,6 +51,7 @@ describe('POST /v1/posts', () => {
         handle: 'jana',
         displayName: 'Jana',
         avatar: null,
+        official: false,
         followedByMe: false,
       },
       text: 'Práve som dočítala.',

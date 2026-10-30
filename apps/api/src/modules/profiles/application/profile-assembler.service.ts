@@ -52,7 +52,7 @@ export class ProfileAssemblerService {
 }
 
 function summaryOf(
-  { userId, handle, displayName, avatarMediaId, followedByMe }: StoredProfileSummary,
+  { userId, handle, displayName, avatarMediaId, official, followedByMe }: StoredProfileSummary,
   avatars: Avatars,
 ): ProfileSummary {
   const media = avatarMediaId === null ? undefined : avatars.get(avatarMediaId);
@@ -62,6 +62,7 @@ function summaryOf(
     handle,
     displayName,
     avatar: media ? { variants: media.variants, urlsExpireAt: media.urlsExpireAt } : null,
+    official,
     followedByMe,
   };
 }

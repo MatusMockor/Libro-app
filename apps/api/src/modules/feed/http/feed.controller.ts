@@ -2,7 +2,18 @@ import { Controller, Get, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import type { AuthenticatedUser } from '../../../http/authentication/authenticated-user.js';
 import { CurrentUser } from '../../../http/authentication/current-user.decorator.js';
+import { ActivityFeedService } from '../application/activity-feed.service.js';
 import { FeedService } from '../application/feed.service.js';
+import {
+  activityFeedQuerySchema,
+  toActivityFeedQuery,
+  type ActivityFeedRequest,
+} from './activity-feed.request.js';
+import {
+  activityPageSchema,
+  toActivityPageResponse,
+  type ActivityPageResponse,
+} from './activity.response.js';
 import { feedPageQuerySchema, toFeedPageQuery, type FeedPageRequest } from './feed-page.request.js';
 import { postPageSchema, toPostPageResponse, type PostPageResponse } from './post.response.js';
 import { reactionSet, reactionSetSchema, type ReactionSetResponse } from './reaction.response.js';
@@ -10,7 +21,23 @@ import { reactionSet, reactionSetSchema, type ReactionSetResponse } from './reac
 @ApiTags('feed')
 @Controller('feed')
 export class FeedController {
-  constructor(private readonly feed: FeedService) {}
+  constructor(
+    private readonly feed: FeedService,
+    private readonly activities: ActivityFeedService,
+  ) {}
+
+  @Get('activity')
+  @ApiOkResponse({
+    description:
+      'The feed of activities, newest first: posts of the tab, announcements of official Libro accounts, and the books you and the readers you follow started or finished (only from readers who share their reading activity), filtered by type',
+    standardSchema: activityPageSchema,
+  })
+  async activity(
+    @CurrentUser() { id }: AuthenticatedUser,
+    @Query({ schema: activityFeedQuerySchema }) query: ActivityFeedRequest,
+  ): Promise<ActivityPageResponse> {
+    return toActivityPageResponse(await this.activities.page(id, toActivityFeedQuery(query)));
+  }
 
   @Get('following')
   @ApiOkResponse({

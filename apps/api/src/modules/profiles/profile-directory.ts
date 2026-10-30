@@ -9,4 +9,5 @@ export interface ProfileDirectory {
     viewerId: string,
     userIds: readonly string[],
   ): Promise<ReadonlyMap<string, ProfileSummary>>;
+  officialUserIds(): Promise<string[]>;
 }

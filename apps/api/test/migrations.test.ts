@@ -17,6 +17,7 @@ const MODULE_TABLES = [
   'books.works',
   'encouragements.congratulations',
   'encouragements.insights',
+  'feed.activities',
   'feed.likes',
   'feed.post_photos',
   'feed.posts',

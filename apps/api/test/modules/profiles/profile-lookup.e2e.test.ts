@@ -41,6 +41,7 @@ describe('GET /v1/profiles/:userId', () => {
       favouriteGenres: ['poetry'],
       topBooks: [],
       avatar: null,
+      official: false,
       followerCount: 0,
       followingCount: 0,
       followedByMe: false,
