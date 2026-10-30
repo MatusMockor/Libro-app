@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { MAX_RATING, MIN_RATING, REVIEW_TEXT_MAX_LENGTH } from '../domain/review.js';
 import { codePointLength, normaliseReviewText } from '../domain/review-text.js';
+import { uuidSchema } from './review-fields.schema.js';
 
 const reviewTextSchema = z
   .string()
@@ -32,10 +33,14 @@ export const writeReviewSchema = z
       .max(MAX_RATING)
       .meta({ description: `Whole stars, ${String(MIN_RATING)} to ${String(MAX_RATING)}` }),
     text: reviewTextSchema.nullable().optional(),
+    photoId: uuidSchema.nullable().optional().meta({
+      description:
+        'One of your own uploaded photos (POST /v1/media) of the finished book; null or left out means no photo',
+    }),
   })
   .meta({
     id: 'WriteReview',
-    description: 'Replaces the whole review: a left out text removes the current one',
+    description: 'Replaces the whole review: a left out text or photo removes the current one',
   });
 
 export type WriteReviewRequest = z.infer<typeof writeReviewSchema>;

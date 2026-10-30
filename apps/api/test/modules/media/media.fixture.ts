@@ -7,7 +7,9 @@ import type { Env } from '../../../src/config/env.schema.js';
 import type { MediaResponse } from '../../../src/modules/media/http/media.response.js';
 import { MediaUrlSignature } from '../../../src/modules/media/storage/local/media-url-signature.js';
 import { integrationTest } from '../../support/integration-test.js';
+import { ANY_ISO_DATE } from '../../support/matchers.js';
 import type { SignedInUser } from '../../support/sign-in.js';
+import { jpeg, type Size } from './images.js';
 
 export const MEDIA_ROUTE = '/v1/media';
 
@@ -50,6 +52,43 @@ function uploaderOf(http: Agent, { id, authorization }: SignedInUser): Uploader 
   };
 
   return uploader;
+}
+
+export const SIGNED_URL =
+  /^http:\/\/media\.test\/v1\/media\/files\/[0-9a-f-]{36}\/(small|medium|large)\.webp\?expires=\d+&signature=[\w-]+$/;
+
+export async function uploadPhoto(
+  http: Agent,
+  { authorization }: { readonly authorization: string },
+  size: Size = { width: 1600, height: 1200 },
+): Promise<MediaResponse> {
+  const response = await http
+    .post(MEDIA_ROUTE)
+    .set('Authorization', authorization)
+    .attach('file', await jpeg(size), { filename: 'photo.jpg', contentType: 'image/jpeg' });
+  expect(response.status, 'upload photo').toBe(201);
+
+  return response.body as MediaResponse;
+}
+
+export function expectedPhoto({ id, width, height, variants }: MediaResponse) {
+  const variant = (size: { width: number; height: number }) => ({
+    url: expect.stringMatching(SIGNED_URL) as string,
+    width: size.width,
+    height: size.height,
+  });
+
+  return {
+    mediaId: id,
+    width,
+    height,
+    variants: {
+      small: variant(variants.small),
+      medium: variant(variants.medium),
+      large: variant(variants.large),
+    },
+    urlsExpireAt: ANY_ISO_DATE,
+  };
 }
 
 export function pathOf(url: string): string {

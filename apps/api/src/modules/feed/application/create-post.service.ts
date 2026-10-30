@@ -6,6 +6,7 @@ import { POST_LIMIT } from '../domain/post-limit.js';
 import { PostCreated } from '../events/post-created.event.js';
 import { PostLimitReachedException } from './post-limit-reached.exception.js';
 import { PostLookupService } from './post-lookup.service.js';
+import { PostPhotosService } from './post-photos.service.js';
 import { POST_REPOSITORY, type PostRepository } from './post-repository.js';
 
 @Injectable()
@@ -14,11 +15,13 @@ export class CreatePostService {
     @Inject(POST_REPOSITORY) private readonly posts: PostRepository,
     @Inject(BOOK_CATALOGUE) private readonly books: BookCatalogue,
     @Inject(EVENT_BUS) private readonly events: EventBus,
+    private readonly photos: PostPhotosService,
     private readonly lookup: PostLookupService,
   ) {}
 
   async create(post: NewPost): Promise<Post> {
     await this.ensureBookExists(post.workId);
+    await this.photos.ensureOwned(post.authorId, post.photoIds);
 
     const outcome = await this.posts.create(post, POST_LIMIT);
     if (outcome.kind === 'limit_reached') {

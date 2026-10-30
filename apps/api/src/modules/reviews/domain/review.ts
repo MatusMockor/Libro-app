@@ -1,4 +1,5 @@
 import type { WorkSummary } from '../../books/index.js';
+import type { MediaWithUrls } from '../../media/index.js';
 import type { ProfileSummary } from '../../profiles/index.js';
 
 export const MIN_RATING = 1;
@@ -10,6 +11,7 @@ export const REVIEW_TEXT_MAX_LENGTH = 1000;
 export interface ReviewDraft {
   readonly rating: number;
   readonly text: string | null;
+  readonly photoMediaId: string | null;
 }
 
 export interface NewReview extends ReviewDraft {
@@ -25,9 +27,15 @@ export interface StoredReview extends NewReview {
   readonly cursorAt: string;
 }
 
-export interface Review extends Omit<StoredReview, 'cursorAt'> {
+export type ReviewPhoto = Pick<
+  MediaWithUrls,
+  'id' | 'width' | 'height' | 'variants' | 'urlsExpireAt'
+>;
+
+export interface Review extends Omit<StoredReview, 'cursorAt' | 'photoMediaId'> {
   readonly reader: ProfileSummary | null;
   readonly book: WorkSummary | null;
+  readonly photo: ReviewPhoto | null;
 }
 
 export interface SavedReview {

@@ -47,7 +47,7 @@ export class PostsController {
   @Post()
   @ApiCreatedResponse({
     description:
-      'The post was published to the feed. An unknown book answers 404 book_not_found, more than 30 posts in 24 hours 429 post_limit_reached (Retry-After)',
+      'The post was published to the feed. An unknown book answers 404 book_not_found, a photo that is not one of yours 404 media_not_found, more than 30 posts in 24 hours 429 post_limit_reached (Retry-After)',
     standardSchema: postSchema,
   })
   async create(

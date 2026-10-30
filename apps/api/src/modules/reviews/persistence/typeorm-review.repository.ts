@@ -13,6 +13,7 @@ const RETURNED_COLUMNS = `
   work_id AS "workId",
   rating,
   text,
+  photo_media_id AS "photoMediaId",
   finished_at AS "finishedAt",
   created_at AS "createdAt",
   updated_at AS "updatedAt",
@@ -21,8 +22,9 @@ const RETURNED_COLUMNS = `
 
 const INSERT_REVIEW = `
   INSERT INTO reviews.reviews
-    (reading_id, user_id, work_id, rating, text, finished_at, created_at, updated_at)
-  SELECT $1::uuid, $2::uuid, $3::uuid, $4::smallint, $5::text, $6::timestamptz, clock.now, clock.now
+    (reading_id, user_id, work_id, rating, text, photo_media_id, finished_at, created_at, updated_at)
+  SELECT $1::uuid, $2::uuid, $3::uuid, $4::smallint, $5::text, $6::uuid, $7::timestamptz,
+         clock.now, clock.now
   FROM (SELECT clock_timestamp() AS now) AS clock
   ON CONFLICT (reading_id) DO NOTHING
   RETURNING ${RETURNED_COLUMNS}
@@ -30,7 +32,7 @@ const INSERT_REVIEW = `
 
 const REPLACE_REVIEW = `
   UPDATE reviews.reviews
-  SET rating = $3, text = $4, updated_at = clock_timestamp()
+  SET rating = $3, text = $4, photo_media_id = $5, updated_at = clock_timestamp()
   WHERE reading_id = $1 AND user_id = $2
   RETURNING ${RETURNED_COLUMNS}
 `;
@@ -76,6 +78,7 @@ export class TypeOrmReviewRepository implements ReviewRepository {
     workId,
     rating,
     text,
+    photoMediaId,
     finishedAt,
   }: NewReview): Promise<SavedReview | undefined> {
     return this.reviews.manager.transaction(async (manager) => {
@@ -85,6 +88,7 @@ export class TypeOrmReviewRepository implements ReviewRepository {
         workId,
         rating,
         text,
+        photoMediaId,
         finishedAt,
       ]);
       if (created) {
@@ -96,6 +100,7 @@ export class TypeOrmReviewRepository implements ReviewRepository {
         userId,
         rating,
         text,
+        photoMediaId,
       ]);
       const [review] = replaced;
 

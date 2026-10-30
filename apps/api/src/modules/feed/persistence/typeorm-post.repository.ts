@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, type EntityManager } from 'typeorm';
 import type { CreatePostOutcome, PostRepository } from '../application/post-repository.js';
 import type { FeedPageQuery } from '../domain/feed-page.js';
 import type { NewPost, StoredPost } from '../domain/post.js';
@@ -27,6 +27,12 @@ const INSERT_POST_BELOW_LIMIT = `
   RETURNING id
 `;
 
+const INSERT_PHOTOS = `
+  INSERT INTO feed.post_photos (post_id, position, media_id)
+  SELECT $1::uuid, photo.position, photo.media_id
+  FROM unnest($2::uuid[]) WITH ORDINALITY AS photo (media_id, position)
+`;
+
 const SELECT_RETRY_AFTER = `
   SELECT COALESCE(
            (
@@ -50,6 +56,12 @@ const SELECT_POSTS = `
          post.text,
          post.work_id AS "workId",
          post.place,
+         ARRAY(
+           SELECT photo.media_id::text
+           FROM feed.post_photos AS photo
+           WHERE photo.post_id = post.id
+           ORDER BY photo.position
+         ) AS "photoIds",
          post.created_at AS "createdAt",
          ${cursorPositionOf('post.created_at')} AS "cursorAt",
          (SELECT count(*)::int FROM feed.likes AS l WHERE l.post_id = post.id) AS "likeCount",
@@ -100,7 +112,7 @@ export class TypeOrmPostRepository implements PostRepository {
   constructor(@InjectRepository(PostEntity) private readonly posts: Repository<PostEntity>) {}
 
   create(
-    { authorId, text, workId, place }: NewPost,
+    { authorId, text, workId, place, photoIds }: NewPost,
     { posts, windowSeconds }: PostLimit,
   ): Promise<CreatePostOutcome> {
     return this.posts.manager.transaction(async (manager) => {
@@ -116,6 +128,8 @@ export class TypeOrmPostRepository implements PostRepository {
         now,
       ]);
       if (created) {
+        await insertPhotos(manager, created.id, photoIds);
+
         return { kind: 'created', postId: created.id };
       }
 
@@ -158,6 +172,18 @@ export class TypeOrmPostRepository implements PostRepository {
       authorIds,
     ]);
   }
+}
+
+async function insertPhotos(
+  manager: EntityManager,
+  postId: string,
+  photoIds: readonly string[],
+): Promise<void> {
+  if (photoIds.length === 0) {
+    return;
+  }
+
+  await manager.query(INSERT_PHOTOS, [postId, photoIds]);
 }
 
 function pageParameters({ after, limit }: FeedPageQuery): unknown[] {

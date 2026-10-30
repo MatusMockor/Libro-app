@@ -132,6 +132,37 @@ describe('POST /v1/posts', () => {
     expect(await storedPosts(dataSource)).toEqual([]);
   });
 
+  test.for([
+    {
+      name: 'a missing text',
+      body: {},
+      error: {
+        message: 'Invalid input: expected string, received undefined',
+        code: 'invalid_type',
+      },
+    },
+    {
+      name: 'a null text',
+      body: { text: null },
+      error: { message: 'Invalid input: expected string, received null', code: 'invalid_type' },
+    },
+    {
+      name: 'an empty text',
+      body: { text: '' },
+      error: { message: 'Too small: expected string to have >=1 characters', code: 'too_small' },
+    },
+    {
+      name: 'a blank text',
+      body: { text: ' \n ', photoIds: [] },
+      error: { message: 'Too small: expected string to have >=1 characters', code: 'too_small' },
+    },
+  ])('keeps the errors of a post without photos for $name', async ({ body, error }, { reader }) => {
+    const response = await reader.publish(body);
+
+    expect(response.status).toBe(400);
+    expect((response.body as ProblemDetails).errors).toStrictEqual([{ path: 'text', ...error }]);
+  });
+
   test('answers 400 validation_failed for a NUL character in the text', async ({ reader }) => {
     const response = await reader.publish({ text: 'Ahoj\u0000' });
 

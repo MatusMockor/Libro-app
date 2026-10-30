@@ -18,6 +18,7 @@ const MODULE_TABLES = [
   'encouragements.congratulations',
   'encouragements.insights',
   'feed.likes',
+  'feed.post_photos',
   'feed.posts',
   'feed.reactions',
   'media.file_variants',
@@ -197,6 +198,52 @@ describe('database migrations', () => {
       expect(passwordHash).toMatch(/^\$argon2id\$v=19\$m=19456,t=2,p=1\$/);
       expect(await verify(passwordHash, '')).toBe(false);
     }
+
+    await dataSource.runMigrations();
+    expect(await moduleTables(dataSource)).toEqual(MODULE_TABLES);
+  });
+
+  it('keeps the posts without text, their likes and reactions when the photos migration is reverted', async () => {
+    await dataSource.runMigrations();
+    const [textOnly, photoOnly] = await dataSource.query<[{ id: string }, { id: string }]>(
+      `INSERT INTO feed.posts (author_id, text, created_at)
+       VALUES (gen_random_uuid(), 'Text only', now() - interval '1 minute'),
+              (gen_random_uuid(), NULL, now())
+       RETURNING id`,
+    );
+    await dataSource.query(
+      `INSERT INTO feed.post_photos (post_id, position, media_id) VALUES ($1, 1, gen_random_uuid())`,
+      [photoOnly.id],
+    );
+    await dataSource.query(
+      `INSERT INTO feed.likes (post_id, user_id) VALUES ($1, gen_random_uuid())`,
+      [photoOnly.id],
+    );
+    await dataSource.query(
+      `INSERT INTO feed.reactions (post_id, user_id, reaction) VALUES ($1, gen_random_uuid(), 'heart')`,
+      [photoOnly.id],
+    );
+    onTestFinished(async () => {
+      await dataSource.runMigrations();
+      await dataSource.query('DELETE FROM feed.posts');
+    });
+
+    await revertUntilTableIsGone(dataSource, 'feed.post_photos');
+
+    expect(await tableExists(dataSource, 'feed.post_photos')).toBe(false);
+    expect(
+      await dataSource.query(
+        `SELECT post.id,
+                post.text,
+                (SELECT count(*)::int FROM feed.likes WHERE post_id = post.id) AS likes,
+                (SELECT count(*)::int FROM feed.reactions WHERE post_id = post.id) AS reactions
+         FROM feed.posts AS post
+         ORDER BY post.created_at`,
+      ),
+    ).toEqual([
+      { id: textOnly.id, text: 'Text only', likes: 0, reactions: 0 },
+      { id: photoOnly.id, text: '📷', likes: 1, reactions: 1 },
+    ]);
 
     await dataSource.runMigrations();
     expect(await moduleTables(dataSource)).toEqual(MODULE_TABLES);

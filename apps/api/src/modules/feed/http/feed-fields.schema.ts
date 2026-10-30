@@ -22,3 +22,7 @@ export function codePointTextSchema(maxLength: number) {
       });
     });
 }
+
+export function distinct(values: readonly string[]): boolean {
+  return new Set(values).size === values.length;
+}

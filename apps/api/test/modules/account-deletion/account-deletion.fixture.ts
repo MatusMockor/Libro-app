@@ -118,7 +118,7 @@ async function readBook(
   http: Agent,
   authorization: string,
   workId: string,
-  finish: boolean,
+  photoId: string | null,
 ): Promise<ReadingSessionResponse> {
   const user = as(http, authorization);
   const started = await user.post('/v1/reading-sessions', { workId, place: 'Kaviaren Libro' });
@@ -132,7 +132,7 @@ async function readBook(
     201,
     'marked part',
   );
-  if (!finish) {
+  if (photoId === null) {
     return session;
   }
 
@@ -143,6 +143,7 @@ async function readBook(
     await user.put(`/v1/readings/${session.readingId}/review`, {
       rating: 4,
       text: 'Kafka on a tram',
+      photoId,
     }),
     200,
     'review',
@@ -209,12 +210,13 @@ function arrangeAccountWith(
       200,
       'profile',
     );
-    const finished = await readBook(http, user.authorization, finishedWork.id, true);
-    const open = await readBook(http, user.authorization, openWork.id, false);
+    const finished = await readBook(http, user.authorization, finishedWork.id, media.id);
+    const open = await readBook(http, user.authorization, openWork.id, null);
     const posted = await client.post('/v1/posts', {
       text: 'Finished Kafka on the tram',
       workId: finishedWork.id,
       place: 'Kaviaren Libro',
+      photoIds: [media.id],
     });
     expectStatus(posted, 201, 'post');
     await arrangeGroupReading(http, factories, user.authorization, open.id);
@@ -413,19 +415,19 @@ export async function arrangeLeftovers(
     .get<SessionParticipantEntity, SessionParticipantFactoryMeta>(SessionParticipantEntity)
     .setMeta({ hostSessionId: session.id, participantSessionId: companion.id })
     .save();
-  await factories
-    .get<ReviewEntity, ReviewFactoryMeta>(ReviewEntity)
-    .setMeta({ readingId: reading.id, userId, workId: work.id })
-    .save();
   const media = await factories
     .get<MediaFileEntity, MediaFileFactoryMeta>(MediaFileEntity)
     .setMeta({ ownerId: userId })
+    .save();
+  await factories
+    .get<ReviewEntity, ReviewFactoryMeta>(ReviewEntity)
+    .setMeta({ readingId: reading.id, userId, workId: work.id, photoMediaId: media.id })
     .save();
   await mkdir(join(mediaRoot, media.id), { recursive: true });
   await writeFile(join(mediaRoot, media.id, 'small.webp'), 'left over');
   const post = await factories
     .get<PostEntity, PostFactoryMeta>(PostEntity)
-    .setMeta({ authorId: userId, workId: work.id })
+    .setMeta({ authorId: userId, workId: work.id, photoIds: [media.id] })
     .save();
   const followeePost = await factories
     .get<PostEntity, PostFactoryMeta>(PostEntity)

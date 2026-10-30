@@ -126,7 +126,7 @@ export async function arrangePosts(
   const factory = factories.get<PostEntity, PostFactoryMeta>(PostEntity);
   const posts: PostEntity[] = [];
   for (const meta of metas) {
-    posts.push(await factory.make(meta));
+    posts.push(await factory.setMeta(meta).make());
   }
 
   return dataSource.getRepository(PostEntity).save(posts, { chunk: 500 });

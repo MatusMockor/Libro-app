@@ -7,6 +7,7 @@ export interface ReviewFactoryMeta {
   workId?: string;
   rating?: number;
   text?: string | null;
+  photoMediaId?: string | null;
   finishedAt?: Date;
   createdAt?: Date;
   updatedAt?: Date;
@@ -35,6 +36,7 @@ function sampleReview(serial: number, meta: ReviewFactoryMeta): ReviewEntity {
     workId: syntheticId('9003', serial),
     rating: (serial % RATINGS) + 1,
     text: `Sample review ${String(serial)}`,
+    photoMediaId: null,
     finishedAt: SAMPLE_FINISHED_AT,
     ...meta,
   });
